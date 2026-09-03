@@ -1186,7 +1186,7 @@ function showTelemetry(sample) {
   const progress = sample.receiver_progress || {};
   const lines = [
     `REMOTE RENDERER · ${sample.state}`,
-    `${sample.resolution[0]}×${sample.resolution[1]}  ${sample.fps.toFixed(1)} fps`,
+    `${sample.resolution[0]}×${sample.resolution[1]}  ${sample.fps.toFixed(1)} fps  t ${Number(sample.time || 0).toFixed(3)}`,
     `render ${sample.render_ms.toFixed(2)} ms  media ${sample.encode_ms.toFixed(2)} ms`,
     `receive ${Number(progress.frames_received || 0).toLocaleString()} frames  ${Number(progress.packets_received || 0).toLocaleString()} packets`,
     `visible ${sample.visible.toLocaleString()} / active ${sample.active.toLocaleString()}`,

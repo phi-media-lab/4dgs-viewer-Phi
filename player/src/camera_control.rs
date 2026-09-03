@@ -21,7 +21,6 @@ pub struct CameraController {
     target_pitch: f32,
     distance: f32,
     target_distance: f32,
-    fov_y: f32,
     roll: f32,
     near: f32,
     far: f32,
@@ -272,7 +271,6 @@ impl CameraController {
             target_pitch: 0.0,
             distance: 5.5,
             target_distance: 5.5,
-            fov_y: 48.0_f32.to_radians(),
             roll: 0.0,
             time,
             playing: true,
@@ -302,7 +300,6 @@ impl CameraController {
         self.target_pitch = 0.0;
         self.distance = 5.5;
         self.target_distance = 5.5;
-        self.fov_y = 48.0_f32.to_radians();
         self.roll = 0.0;
         self.near = self.initial_fixed.near;
         self.far = self.initial_fixed.far;
@@ -523,10 +520,13 @@ impl CameraController {
             -dot(forward, eye),
             1.0,
         ];
-        let fy = 0.5 * height as f32 / (self.fov_y * 0.5).tan();
+        // Orbiting changes only the pose. Keep the asset's calibrated lens,
+        // aspect-fit scale and principal point so releasing the fixed camera
+        // cannot introduce a projection step.
+        let intrinsics = renderer::fixed_camera(&self.initial_fixed, width, height).intrinsics;
         CameraUniform {
             world_to_camera,
-            intrinsics: [fy, fy, width as f32 * 0.5, height as f32 * 0.5],
+            intrinsics,
             near: self.near,
             far: self.far,
             eye,
@@ -549,7 +549,6 @@ impl CameraController {
         self.yaw = (-forward[0]).atan2(forward[2]);
         self.target_yaw = self.yaw;
         self.roll = dot(fixed_right, base_down).atan2(dot(fixed_right, base_right));
-        self.fov_y = 2.0 * (height as f32 * 0.5).atan2(uniform.intrinsics[1]);
         self.target_distance = self.distance;
         self.fixed = false;
     }
@@ -612,17 +611,99 @@ mod tests {
         }
     }
 
-    #[test]
-    fn releasing_fixed_camera_has_no_jump() {
-        let mut camera = CameraController::new(fixed(), 0.5);
-        let before = camera.uniform(640, 360);
-        camera.apply(ControlMessage::Orbit { dx: 0.0, dy: 0.0 }, 640, 360);
-        let after = camera.uniform(640, 360);
-        for (before, after) in before.world_to_camera.iter().zip(after.world_to_camera) {
+    fn calibrated_fixed() -> FixedCamera {
+        let diagonal = std::f32::consts::FRAC_1_SQRT_2;
+        let roll_sin = 0.5_f32;
+        let roll_cos = 0.5_f32 * 3.0_f32.sqrt();
+        let forward = [-diagonal, 0.0, diagonal];
+        let base_right = [diagonal, 0.0, diagonal];
+        let base_down = [0.0, 1.0, 0.0];
+        let right = add(scale(base_right, roll_cos), scale(base_down, roll_sin));
+        let down = add(scale(base_down, roll_cos), scale(base_right, -roll_sin));
+        let eye = [2.0, -1.0, -3.0];
+        FixedCamera {
+            world_to_camera_row_major: [
+                [right[0], right[1], right[2], -dot(right, eye)],
+                [down[0], down[1], down[2], -dot(down, eye)],
+                [forward[0], forward[1], forward[2], -dot(forward, eye)],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+            intrinsics: [731.25, 704.5, 301.75, 207.125],
+            source_size: [731, 487],
+            near: 0.025,
+            far: 250.0,
+        }
+    }
+
+    fn assert_uniform_close(before: &CameraUniform, after: &CameraUniform) {
+        for (before, after) in before
+            .world_to_camera
+            .iter()
+            .chain(before.intrinsics.iter())
+            .chain(before.eye.iter())
+            .chain([&before.near, &before.far])
+            .zip(
+                after
+                    .world_to_camera
+                    .iter()
+                    .chain(after.intrinsics.iter())
+                    .chain(after.eye.iter())
+                    .chain([&after.near, &after.far]),
+            )
+        {
             assert!(
                 (before - after).abs() < 1e-5,
                 "camera jumped: {before} != {after}"
             );
+        }
+    }
+
+    #[test]
+    fn releasing_fixed_camera_has_no_jump() {
+        let mut camera = CameraController::new(calibrated_fixed(), 0.5);
+        let before = camera.uniform(960, 540);
+        camera.apply(ControlMessage::Orbit { dx: 0.0, dy: 0.0 }, 960, 540);
+        let after = camera.uniform(960, 540);
+        assert_uniform_close(&before, &after);
+    }
+
+    #[test]
+    fn first_orbit_input_changes_only_the_smoothed_target() {
+        let mut camera = CameraController::new(calibrated_fixed(), 0.5);
+        let before = camera.uniform(960, 540);
+        let result = camera.apply(ControlMessage::Orbit { dx: 18.0, dy: -7.0 }, 960, 540);
+        let before_tick = camera.uniform(960, 540);
+        assert!(result.camera_input && result.orbit_input);
+        assert!(camera.is_settling());
+        assert_uniform_close(&before, &before_tick);
+
+        camera.tick(1.0 / 60.0);
+        let after_tick = camera.uniform(960, 540);
+        assert!(
+            before
+                .world_to_camera
+                .iter()
+                .zip(after_tick.world_to_camera)
+                .any(|(before, after)| (before - after).abs() > 1e-5)
+        );
+        assert!(
+            after_tick
+                .world_to_camera
+                .iter()
+                .all(|value| value.is_finite())
+        );
+    }
+
+    #[test]
+    fn released_camera_preserves_calibration_after_viewport_change() {
+        let fixed = calibrated_fixed();
+        let mut camera = CameraController::new(fixed.clone(), 0.5);
+        camera.apply(ControlMessage::Orbit { dx: 0.0, dy: 0.0 }, 960, 540);
+
+        let expected = renderer::fixed_camera(&fixed, 800, 800).intrinsics;
+        let actual = camera.uniform(800, 800).intrinsics;
+        for (expected, actual) in expected.into_iter().zip(actual) {
+            assert!((expected - actual).abs() < 1e-5);
         }
     }
 

@@ -759,6 +759,7 @@ pub struct LiveStatus {
     pub camera_target_distance: f32,
     pub camera_orbit_updates_applied: u64,
     pub camera_zoom_updates_applied: u64,
+    pub time: f32,
     pub dropped: u64,
     pub deadline_misses: u64,
     pub skipped_frames: u64,

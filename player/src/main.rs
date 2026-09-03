@@ -1394,6 +1394,7 @@ fn serve(args: Args) -> Result<()> {
             live.camera_target_distance = camera.target_distance();
             live.camera_orbit_updates_applied = camera_orbit_updates_applied;
             live.camera_zoom_updates_applied = camera_zoom_updates_applied;
+            live.time = camera.time;
             live.slot_wait_ms = slot_wait_ms;
             live.push_ms = push_ms;
         }
