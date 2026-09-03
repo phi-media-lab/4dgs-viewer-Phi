@@ -74,8 +74,8 @@ changing projection or rendering stages.
 Each mean moves linearly from its time center:
 
 $$
-\boldsymbol{\mu}_i(t) = \boldsymbol{\mu}_{i,0}
-+ \mathbf{v}_i(t-\mu_{t,i}).
+\boldsymbol{\mu}_i(t) = \boldsymbol{\mu}_{i,0} +
+\mathbf{v}_i(t-\mu_{t,i}).
 $$
 
 Opacity is gated by a temporal Gaussian:
@@ -110,7 +110,17 @@ J = \begin{bmatrix}
 $$
 
 For the lesson's diagonal 3D covariance
-$\Sigma_3=\operatorname{diag}(\sigma_x^2,\sigma_y^2,\sigma_z^2)$,
+
+$$
+\Sigma_3=
+\begin{bmatrix}
+\sigma_x^2 & 0 & 0\\
+0 & \sigma_y^2 & 0\\
+0 & 0 & \sigma_z^2
+\end{bmatrix},
+$$
+
+the projected covariance and conic are
 
 $$
 \Sigma_2 = J\Sigma_3J^T + \sigma_{min}^2 I,

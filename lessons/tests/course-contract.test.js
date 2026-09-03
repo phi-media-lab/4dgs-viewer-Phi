@@ -102,3 +102,21 @@ test('lesson documents expose the complete learning and verification loop', asyn
     }
   }
 });
+
+test('lesson mathematics stays compatible with GitHub GFM', async () => {
+  for (const [, directory] of lessons) {
+    const document = await read(`${directory}/LESSON.md`);
+    assert.doesNotMatch(
+      document,
+      /\\operatorname\b/,
+      `${directory}/LESSON.md uses \\operatorname, which GitHub rejects`,
+    );
+    for (const [, equation] of document.matchAll(/\$\$([\s\S]*?)\$\$/g)) {
+      assert.doesNotMatch(
+        equation,
+        /^[+*-] /m,
+        `${directory}/LESSON.md starts a math line with a GFM list marker`,
+      );
+    }
+  }
+});

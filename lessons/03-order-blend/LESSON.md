@@ -34,10 +34,12 @@ The fragment at position $\mathbf p$ evaluates
 
 $$
 \alpha_i(\mathbf p) =
-\operatorname{clamp}\!\left(
+\min\!\left(0.999,
+\max\!\left(0,
 o_i\exp\left[-\frac{1}{2}\left\|
 \frac{\mathbf p-\boldsymbol\mu_i}{\boldsymbol\sigma_i}
-\right\|^2\right], 0, 0.999\right).
+\right\|^2\right]
+\right)\right).
 $$
 
 ## The exact blend convention

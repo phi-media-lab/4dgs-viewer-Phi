@@ -51,10 +51,13 @@ $$
 The spatial fragment opacity is
 
 $$
-\alpha_i(\mathbf p,t)=\operatorname{clamp}\!\left(
+\alpha_i(\mathbf p,t)=
+\min\!\left(0.999,
+\max\!\left(0,
 o_i g_i(t)\exp\left[-\frac12\left\|
 \frac{\mathbf p-\boldsymbol\mu_i(t)}{\boldsymbol\sigma_i}
-\right\|^2\right],0,0.999\right).
+\right\|^2\right]
+\right)\right).
 $$
 
 Consequently a static record ($m_i=0$) has

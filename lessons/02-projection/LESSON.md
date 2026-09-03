@@ -38,11 +38,18 @@ $$
 
 ## Covariance and conic
 
-A scale vector $\mathbf{s}$ and orientation $R$ define the camera-space 3D
-covariance
+A scale vector $\mathbf{s}$ first defines a diagonal scale covariance. The
+orientation $R$ then rotates it into camera space:
 
 $$
-\Sigma_{3D}=R\,\operatorname{diag}(\mathbf{s}^2)R^\mathsf{T}.
+D_{\mathbf{s}}=
+\begin{bmatrix}
+s_x^2 & 0 & 0\\
+0 & s_y^2 & 0\\
+0 & 0 & s_z^2
+\end{bmatrix},
+\qquad
+\Sigma_{3D}=R D_{\mathbf{s}}R^\mathsf{T}.
 $$
 
 Its screen-space first-order approximation is
