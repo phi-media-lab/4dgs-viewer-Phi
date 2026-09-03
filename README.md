@@ -1,144 +1,178 @@
 # 4DGS Viewer Phi
 
-4DGS Viewer Phi contains two independently runnable components:
+[简体中文](README.zh-CN.md)
 
-- `player/`: a Linux Remote Frame Mode Player built with Rust, wgpu, WGSL,
-  Vulkan, DMA-BUF, VA-API and WebRTC;
-- `lessons/`: seven first-principles WebGPU + WGSL lessons covering the path
-  from device creation to a complete synthetic 4DGS rendering pipeline.
+4DGS Viewer Phi is an architecture-first, verifiable reference for remotely
+rendered, interactive 4D Gaussian scenes. It is developed by Phi Media Lab in
+collaboration with AMD.
 
-The Player renders explicit 4D Gaussian assets on a Linux GPU and sends encoded
-frames to a thin browser receiver. The course exposes its JavaScript host code,
-WGSL stages, GPU commands and numerical checks directly. VS Code is the code
-surface and the browser is the rendering surface. Training and client-side
-Gaussian streaming are outside this repository. A deterministic offline bridge
-imports a verified Pixel4DGS AssetBundle into the Player's explicit-v1 format.
+The reference workflow separates two AMD hardware roles: AMD Instinct MI300X
+with ROCm can produce inference assets upstream, while an AMD Radeon Linux node
+owns interactive rendering and media encoding. A laptop browser remains a thin
+receiver. This repository publishes the inference/serving side and the strict
+asset boundary between the two; it does not publish a training system.
 
 ![Corgi 4DGS preview with a looping camera orbit, dolly and time change](docs/assets/remote-frame-corgi-motion.webp)
 
-*Corgi — 499,980 SH3 Gaussians rendered through a looping camera orbit and
-dolly while normalized time changes, with the Player's runtime HUD preserved.
-Only this rendered preview is distributed; the source video and Gaussian
-asset are not. See
+*Corgi — 499,980 SH3 Gaussians rendered by the AMD Linux reference Player while
+camera pose and normalized time change together. The authentic runtime HUD is
+preserved. Only this rendered preview is distributed; the source video and
+Gaussian asset are not. See
 [`THIRD_PARTY.md`](THIRD_PARTY.md#selfcap-corgi-renderer-preview).*
 
-## WebGPU course
-
-Requirements: Node.js `^20.19.0` or `>=22.12.0` and a WebGPU-capable
-Chrome/Chromium build.
-
-```bash
-code-insiders lessons/4dgs-viewer-phi.code-workspace
-cd lessons
-npm ci
-npm run dev:open
-```
-
-The catalog at `http://127.0.0.1:5173/` links to all seven lessons:
+## System architecture
 
 ```text
-00 Environment       WebGPU device, shader, pipeline and command submission
-01 One Gaussian      Analytic Gaussian footprint and CPU/WGSL agreement
-02 Projection        3D covariance, camera Jacobian and 2D conic
-03 Order and blend   Correct and deliberately reversed transparent order
-04 Explicit time     Static/moving primitives and temporal opacity
-05 Active set        GPU active/visible compaction and indirect draw
-06 Complete pipeline Validation, projection, sorting and rendering together
+REFERENCE ASSET PRODUCTION — outside this repository
+
+AMD Instinct MI300X + ROCm
+Pixel4DGS-compatible training / inference export
+                         │
+                         │ p2g.asset_bundle.v1 + camera path
+                         ▼
+              CPU-only, hash-verified bridge
+                         │ phi.4dgs.explicit.v1
+                         ▼
+──────────────────── AMD LINUX RENDERER ────────────────────
+
+          Rust frame scheduler and resource ownership
+                         │
+                wgpu host commands + WGSL
+                  Naga shader translation
+                         │
+               Mesa RADV / Vulkan on AMD GPU
+                         │
+       time evaluation / projection / active compaction
+         depth radix sort / tile bin / tile composite
+                         │
+             BGRA render target, linear DRM layout
+                         │ ash + wgpu-hal external memory
+                         ▼
+                 linear AR24 DMA-BUF
+                         │
+       GStreamer vaapipostproc + vaapih264enc
+                 Mesa radeonsi VA-API
+                         │
+                    H.264 / WebRTC
+                         │ media frames
+─────────────────────────┼──────────────────────────────────
+                         ▼
+                  Chrome thin receiver
+                 decode / present / HUD
+                         │
+                         └── orbit / zoom / time ──►
+                              WebRTC DataChannel
+                              back to the renderer
 ```
 
-Every lesson owns its WebGPU pipeline and provides a falsifiable
-`window.__LESSON_RESULT__`. Course inputs are source constants or procedural
-JavaScript records; running the lessons requires no model, media file or
-external asset request. Vite updates the browser after source changes without a
-manual refresh. See
-[`lessons/README.md`](lessons/README.md) for the course and verification
-commands.
+The Linux process owns the GPU device, Gaussian resources, command order, frame
+slots, cadence and encoder. The browser owns H.264 presentation and user input.
+Gaussian payloads never cross the network in Remote Frame Mode.
 
-## Remote Frame Mode Player
+This keeps client bandwidth and decode cost tied to the encoded video profile,
+not to the number of Gaussians. The tradeoff is per-session render/encode cost
+on the AMD node and dependence on network latency; v0.1 is deliberately
+single-peer.
 
-The reference renderer profile is Ubuntu 24.04 x86_64 with AMD RADV/VA-API and
-GStreamer 1.24. macOS is receiver-only; other renderer GPUs are unverified and
-Windows is out of scope.
+## AMD hardware and software design
 
-After installing the packages listed in [`player/README.md`](player/README.md):
+The collaboration uses AMD's compute, graphics and media capabilities as
+separate system roles rather than forcing training and interactive delivery
+into one runtime.
 
-```bash
-cd player
-cargo test --locked
-./scripts/run.sh
-```
+| Stage | Reference hardware/software | Responsibility |
+| --- | --- | --- |
+| Upstream asset production | AMD Instinct MI300X + ROCm | Train or prepare a Pixel4DGS-compatible inference bundle; outside this repository |
+| Interactive rasterization | AMD Radeon GPU + Linux `amdgpu`/DRM + Mesa RADV | Execute the Vulkan 4DGS workload |
+| Portable GPU layer | Rust + wgpu + WGSL/Naga | Describe resources, shaders, passes and submission |
+| Vulkan escape hatch | `ash` + `wgpu-hal` | Create an exportable Vulkan image and wrap the same image as a wgpu texture |
+| Graphics/media contract | Vulkan external memory + linear DRM AR24 + DMA-BUF | Share a rendered frame without a full-frame CPU pixel copy |
+| Media path | Mesa radeonsi VA-API + GStreamer 1.24 | Import BGRA, convert to NV12, encode H.264 and packetize WebRTC |
+| Receiver | Chrome/Chromium on a laptop | Decode and present video; return camera and time controls |
 
-The server listens on `127.0.0.1:4191`. For a receiver on another machine,
-forward signaling with SSH and open the forwarded URL in Chrome:
+Most of the renderer remains in portable wgpu/WGSL. The narrow
+`ash`/`wgpu-hal` boundary exists because an exportable Vulkan image and its
+DMA-BUF file descriptor must be controlled explicitly.
 
-```bash
-ssh -L 4192:127.0.0.1:4191 user@renderer-host
-```
+The public Player runtime does **not** depend on ROCm, HIP or AMF. ROCm belongs
+to the optional upstream asset-production workflow; the deployed renderer uses
+Vulkan/RADV and VA-API/radeonsi. Vulkan, DMA-BUF, VA-API, GStreamer and WebRTC
+are not AMD-private interfaces, but AMD/Mesa is the only renderer integration
+for which this project currently makes a support claim.
+
+## 4DGS GPU frame graph
 
 ```text
-http://127.0.0.1:4192/?jitter_buffer_ms=browser
+explicit-v1 geometry + motion + SH0/SH3
+        │
+        ├─ validate records and evaluate time activation
+        ├─ project covariance, cull and compact the active set
+        ├─ build depth keys and perform four-pass radix sorting
+        ├─ audit equal-depth cases and build indirect work
+        ├─ bin ordered Gaussians into tiles
+        ├─ composite front-to-back with explicit termination policy
+        └─ resolve composited color into the exportable BGRA frame slot
 ```
 
-The SSH tunnel carries HTTP signaling only. WebRTC media and controls still
-require a direct UDP path from the browser to the renderer; see
-[`player/README.md`](player/README.md#run-the-webrtc-player).
+Camera and time changes enter the same server-owned frame graph. The browser
+therefore observes spatial parallax and temporal deformation together without
+holding a second copy of the scene representation.
 
-The browser sends camera and time controls while the Linux process owns
-rendering, encoding and frame scheduling. The GPU frame crosses the
-Vulkan/VA-API boundary as a linear DMA-BUF; unsupported interop fails instead
-of silently copying pixels through the CPU.
+## Design invariants
 
-## Asset conformance
+- **One device owner.** The Linux renderer owns device and resource lifetime;
+  the browser never creates a Gaussian-rendering `GPUDevice`.
+- **Explicit interop.** Streaming accepts only a single-plane linear AR24
+  modifier verified across RADV and radeonsi. A tiled-only or CPU-copy fallback
+  is rejected.
+- **Precisely scoped copying claim.** The Vulkan render target is not staged
+  through full-frame CPU pixel memory before VA-API. GPU color conversion,
+  encoded bitstreams, network transport and browser decode still exist;
+  one-frame validation intentionally performs readback.
+- **Training/rendering decoupling.** A versioned, hash-closed inference asset is
+  the boundary. Training checkpoints, optimizers and datasets are not runtime
+  dependencies.
+- **Falsifiable evidence.** Asset conformance, shader/render parity, media color
+  correctness and browser interaction are independent validation gates.
 
-The repository includes a strict explicit-4DGS asset format and two
-deterministic synthetic examples:
+## What ships
 
-```bash
-python3 tools/generate_synthetic_asset.py --check
-python3 -m unittest discover -s tests -v
-python3 tools/validate_asset.py \
-  examples/minimal-sh0/manifest.json \
-  examples/synthetic-motion-sh3/manifest.json
-```
+| Component | Purpose | Execution surface |
+| --- | --- | --- |
+| [`player/`](player/) | Native Remote Frame renderer and thin WebRTC receiver | AMD Linux reference renderer + Chrome |
+| [`asset-format/`](asset-format/) | Versioned explicit 4DGS manifest and binary contract | Runtime-neutral |
+| [`tools/convert_p2g_asset.py`](tools/convert_p2g_asset.py) | Deterministic Pixel4DGS inference-asset bridge | Offline, CPU-only |
+| [`evidence/`](evidence/) | Hash-bound native reference and comparison receipts | Validation |
+| [`lessons/`](lessons/) | Seven first-principles WebGPU/WGSL experiments | Browser WebGPU |
 
-The full contract is documented in
-[`asset-format/explicit-v1.md`](asset-format/explicit-v1.md). The calibration
-regions and their expected visual invariants are described in
-[`examples/README.md`](examples/README.md).
+The lessons expose projection, ordering, temporal evaluation and GPU command
+structure in editable source. They are a companion explanation of the rendering
+principles, not the frontend of the native Player and not an AMD benchmark.
 
-### Import a Pixel4DGS AssetBundle
+## Validated envelope
 
-The bridge accepts an inference-only `p2g.asset_bundle.v1` directory and its
-hash-bound `p2g.camera_path.v1`; it does not accept a training checkpoint:
+The renderer reference profile is Ubuntu 24.04 x86_64 with an AMD GPU exposed
+through Mesa RADV Vulkan, linear DMA-BUF accepted by radeonsi VA-API, and
+GStreamer 1.24. The receiver target is a current H.264-capable Chrome/Chromium.
 
-```bash
-python3 tools/convert_p2g_asset.py \
-  /path/to/asset-bundle-v1 \
-  /path/to/camera_path.json \
-  /new/private/output-directory \
-  --name my-4dgs-asset
-```
+The current server is single-peer and LAN-oriented. HTTP signaling may be
+forwarded over SSH, while WebRTC media and controls require a directly reachable
+UDP path. TURN, public signaling, authentication, multi-tenancy and production
+scheduling are not implemented. Other renderer GPUs and Linux combinations are
+unverified; macOS is receiver-only and Windows is out of scope.
 
-It verifies the source hash closure and tensor/camera semantics before writing,
-refuses to overwrite an existing output, maps the Pixel4DGS classic raster ABI
-explicitly, and stores the selected normalized timestamp as manifest
-`time.initial` (also repeated in the conversion receipt).
-Source redistribution restrictions remain attached to the output provenance;
-the repository contains no converted third-party model. See
-[`docs/P2G_ASSET_BRIDGE.md`](docs/P2G_ASSET_BRIDGE.md).
+Portable CI, AMD hardware execution and an interactive Chrome session prove
+different things. The project does not treat a source build as proof of
+Vulkan/VA-API interoperability, or one rendered frame as proof of network
+behavior. See [`docs/VALIDATION.md`](docs/VALIDATION.md).
 
-## Repository map
+## Start with the architecture
 
-```text
-player/        Remote renderer and thin WebRTC browser receiver
-lessons/       WebGPU course source and development environment
-asset-format/  Explicit 4DGS manifest and binary contract
-examples/      Deterministic synthetic conformance assets
-tools/         Asset conversion, comparison and Schema validation
-evidence/      Native reference/comparison receipt Schema
-docs/          Architecture, platform support and validation model
-```
-
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
-[`docs/SUPPORTED_PLATFORMS.md`](docs/SUPPORTED_PLATFORMS.md) and
-[`docs/VALIDATION.md`](docs/VALIDATION.md) for the complete technical boundary.
+| Question | Document |
+| --- | --- |
+| Who owns data, commands and transport? | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
+| How is the AMD reference Player built and run? | [`player/README.md`](player/README.md) |
+| What hardware/software profile is supported? | [`docs/SUPPORTED_PLATFORMS.md`](docs/SUPPORTED_PLATFORMS.md) |
+| How does an inference asset enter the system? | [`docs/P2G_ASSET_BRIDGE.md`](docs/P2G_ASSET_BRIDGE.md) |
+| How are claims verified independently? | [`docs/VALIDATION.md`](docs/VALIDATION.md) |
+| How can the GPU stages be studied interactively? | [`lessons/README.md`](lessons/README.md) |
