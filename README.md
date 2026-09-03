@@ -14,6 +14,11 @@ surface and the browser is the rendering surface. Training and client-side
 Gaussian streaming are outside this repository. A deterministic offline bridge
 imports a verified Pixel4DGS AssetBundle into the Player's explicit-v1 format.
 
+![The bundled synthetic 4D Gaussian scene moving through normalized time](docs/assets/remote-frame-synthetic-motion.gif)
+
+*The bundled procedural 4,096-Gaussian SH3 scene exercises explicit motion,
+temporal gates and depth ordering in the Rust/wgpu/WGSL renderer.*
+
 ## WebGPU course
 
 Requirements: Node.js `^20.19.0` or `>=22.12.0` and a WebGPU-capable

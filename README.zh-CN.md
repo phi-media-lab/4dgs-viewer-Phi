@@ -13,6 +13,11 @@ Player 在 Linux GPU 上渲染 explicit 4D Gaussian asset，并把编码后的�
 串流不在本仓库范围内；仓库提供一个确定性的离线 bridge，把经过验证的
 Pixel4DGS AssetBundle 导入 Player 的 explicit-v1 格式。
 
+![内置 synthetic 4D Gaussian 场景沿归一化时间运动](docs/assets/remote-frame-synthetic-motion.gif)
+
+*内置的程序化 4,096-Gaussian SH3 场景在 Rust/wgpu/WGSL 渲染器中
+同时检验显式运动、时间门控和深度顺序。*
+
 ## WebGPU 课程
 
 需要 Node.js `^20.19.0` 或 `>=22.12.0`，以及支持 WebGPU 的
