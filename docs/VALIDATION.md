@@ -105,8 +105,12 @@ At minimum preserve these identities beside a private comparison:
 - Phi source and shader bundle identity;
 - both raw RGBA8 hashes, dimensions and numerical metrics.
 
-Restricted real-world assets and their frames remain outside the repository.
-Only generic tools, Schemas and synthetic examples may be committed.
+Source videos, Gaussian assets, converted payloads, raw frames and private
+receipts for real-world scenes remain outside the repository. A rendered
+documentation preview may be committed only when its public distribution is
+authorized, its provenance and separate media terms are recorded, and its
+exact path is allowlisted by the public-tree audit. Importable conformance
+assets under `examples/` remain synthetic-only.
 
 For the initial 1280 x 720 Pixel4DGS/Phi closure, declare and run the image
 gate before reading its metrics:

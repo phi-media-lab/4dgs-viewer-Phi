@@ -14,10 +14,12 @@ surface and the browser is the rendering surface. Training and client-side
 Gaussian streaming are outside this repository. A deterministic offline bridge
 imports a verified Pixel4DGS AssetBundle into the Player's explicit-v1 format.
 
-![The bundled synthetic 4D Gaussian scene moving through normalized time](docs/assets/remote-frame-synthetic-motion.gif)
+![The Corgi scene rendered across normalized time](docs/assets/remote-frame-corgi-motion.webp)
 
-*The bundled procedural 4,096-Gaussian SH3 scene exercises explicit motion,
-temporal gates and depth ordering in the Rust/wgpu/WGSL renderer.*
+*Corgi — a 499,980-Gaussian SH3 asset rendered across normalized time by Phi's
+native Rust/wgpu/WGSL renderer. This repository distributes the rendered
+preview, not the source video or Gaussian asset; see
+[`THIRD_PARTY.md`](THIRD_PARTY.md#selfcap-corgi-renderer-preview).*
 
 ## WebGPU course
 

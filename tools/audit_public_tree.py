@@ -30,7 +30,7 @@ TEXT_SUFFIXES = {
 }
 TEXT_NAMES = {".gitignore", ".node-version", "LICENSE", "NOTICE"}
 BINARY_ALLOWLIST = {
-    PurePosixPath("docs/assets/remote-frame-synthetic-motion.gif"),
+    PurePosixPath("docs/assets/remote-frame-corgi-motion.webp"),
     PurePosixPath("examples/minimal-sh0/gaussians.bin"),
     PurePosixPath("examples/synthetic-motion-sh3/gaussians.bin"),
     PurePosixPath("examples/synthetic-motion-sh3/sh3.f16"),
