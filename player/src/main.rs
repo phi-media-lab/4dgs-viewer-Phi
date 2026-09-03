@@ -990,7 +990,7 @@ fn validate(args: Args) -> Result<()> {
             .with_context(|| format!("write {}", reference_receipt_path.display()))?;
         receipt_file.sync_all()?;
         println!(
-            "created {} ({} bytes, sha256 {}) and {} with review_status=UNREVIEWED; inspect the image before committing",
+            "created {} ({} bytes, sha256 {}) and {} with review_status=UNREVIEWED; inspect the image before marking it REVIEWED",
             golden_path.display(),
             result.rgba8.len(),
             reference_sha256,
@@ -1025,7 +1025,7 @@ fn validate(args: Args) -> Result<()> {
             gpu_to_cpu_readback: "validation-only",
             render_target: "ash-created Vulkan image wrapped by wgpu without a pixel copy",
             exported_handle: "DMA-BUF fd",
-            note: "Readback exists only for parity evidence; the streaming media path consumes the exported DMA-BUF.",
+            note: "Full-frame pixel readback exists only for parity evidence; the streaming media path consumes the exported DMA-BUF.",
         },
     };
     let json = serde_json::to_string_pretty(&receipt)? + "\n";

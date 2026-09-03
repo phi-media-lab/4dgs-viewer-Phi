@@ -12,8 +12,6 @@ Each gate answers a different question. Passing one must not be reported as pass
 | Lesson Chrome smoke | `window.__LESSON_RESULT__.status === "PASS"` on real WebGPU | Player correctness |
 | AMD one-frame evidence | Vulkan render and VA-API color roundtrip agree with a reviewed reference | Interactive WebRTC behavior |
 | Player Chrome session | End-to-end encode, WebRTC, presentation and input work | Multi-user or Internet deployment |
-| Release binary path scan | The stripped CI binary omits known host/workspace paths | Bit-for-bit reproducibility or binary redistribution approval |
-| Dependency evidence | Checked-in locks can be enumerated and npm emits a CycloneDX build SBOM | License compatibility or runtime/system-package completeness |
 
 ## Portable commands
 
@@ -50,48 +48,25 @@ cargo test --locked
 cargo build --release --locked
 ```
 
-The official Linux job uses an isolated `CARGO_HOME` and target directory,
-derives `SOURCE_DATE_EPOCH` from the commit, and remaps both the checkout and
-temporary roots before compiling. After stripping, it scans the executable for
-`/Users/`, `/home/`, the checkout root and the runner temporary root. The job
-uploads only the scan result, toolchain versions and binary digest—not the
-binary itself.
+A golden must be created as an explicit, non-overwriting action and visually
+reviewed before it becomes a comparison input.
 
-All GitHub Actions used by the workflow are restricted by the public-tree audit
-to a short first-party allowlist and immutable 40-character commits. A moving
-major-version tag is not accepted by that gate.
-
-Dependency evidence is generated without adding another SBOM package to the
-project's dependency graph:
-
-```bash
-python3 tools/generate_dependency_inventory.py --output /tmp/lockfile-inventory.json
-
-cd lessons
-npm sbom --sbom-format cyclonedx > /tmp/lessons.cdx.json
-```
-
-The first file is a deterministic, path-free inventory of the Cargo, npm and
-Python lock files. The second is npm's CycloneDX build SBOM. Both are CI
-artifacts for review; neither closes the dependency-license review by itself.
-
-Hardware evidence and browser receipts belong in CI artifacts. A golden may be created only as an explicit, non-overwriting action and must be visually reviewed before it becomes a comparison input.
-
-The receipt Schema deliberately checks structure, ranges, fixed policy values
-and discriminator fields, while the evidence procedure checks relationships
+The receipt Schema checks structure, ranges, fixed policy values and
+discriminator fields, while the evidence procedure checks relationships
 that standard JSON Schema cannot express. In particular, verify that:
 
 - `source.shader_bundle_sha256` equals `frame.shader_bundle_sha256`;
 - frame, media and raw RGBA8 dimensions/byte counts agree;
 - the raw reference hashes to `reference.rgba8_sha256`, or the compared files
   hash to `image.golden_sha256` and `image.actual_sha256`;
-- release evidence has a non-null `source.git_commit` naming the tested commit;
+- revision-bound evidence has a non-null `source.git_commit` naming the tested
+  commit;
 - a human inspected the converted PNG before changing `review_status` from
   `UNREVIEWED` to `REVIEWED`.
 
 The comparison executable loads the neighboring receipt and, before rendering,
 enforces reference-v1, `REVIEWED`, raw byte/hash, asset identity and requested
-frame identity. It intentionally does not compare the reference's source hash
+frame identity. It does not compare the reference's source hash
 with the current source hash: cross-version comparison is the purpose of this
 gate. Runtime parsing covers only that enforcement subset, so the strict Schema
 command remains mandatory for complete structure and duplicate-key checking.

@@ -1,1 +1,1 @@
-"""Open-source staging asset tools."""
+"""Asset generation and validation tools."""

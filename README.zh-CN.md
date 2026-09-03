@@ -1,46 +1,94 @@
 # 4DGS Viewer Phi
 
-> 这是预发布源码树。在 `docs/RELEASE_BLOCKERS.md` 中的许可与来源门关闭前，不得创建正式 release。
+4DGS Viewer Phi 包含两个可以独立运行的部分：
 
-本仓库只抽取两个相互独立的产物：
+- `player/`：基于 Rust、wgpu、WGSL、Vulkan、DMA-BUF、VA-API 和 WebRTC
+  的 Linux Remote Frame Mode Player；
+- `lessons/`：从第一性原理讲解 WebGPU + WGSL 的课程，目前包含 Lesson 00。
+  VS Code 负责代码，浏览器负责运行和显示。
 
-- `player/`：Linux Vulkan/DMA-BUF/VA-API Remote Frame Mode Player；
-- `lessons/`：使用原生 WebGPU + WGSL 的第一性原理课程，VS Code 阅读代码，浏览器显示渲染结果。
+Player 在 Linux GPU 上渲染 explicit 4D Gaussian asset，并把编码后的帧发送给
+轻量浏览器接收端。Lesson 00 以 RGB 三角形直接展示最小 WebGPU 宿主控制链和
+Shader 链。训练、模型转换和客户端 Gaussian 串流不在本仓库范围内。
 
-这里不会包含客户端 Gaussian 串流实验、训练代码、真实人物 checkpoint、私有网络 receipt 或机器配置。
+## WebGPU Lesson 00
 
-当前第一阶段先建立干净仓库、严格资产合同、原创 synthetic SH0/SH3 示例、Player 离线验证入口，以及完全不依赖 Client GS 的 Lesson 00。此时还不是正式 release；公开项目身份已经确定为 `phi-media-lab/4dgs-viewer-Phi`，OSI 许可证和版权主体仍需 maintainer 确认。
-
-两个产物的边界、发布单元和 gate 见
-[`docs/OPEN_SOURCE_PACKAGING.md`](docs/OPEN_SOURCE_PACKAGING.md)。
-
-## 生成并验证示例资产
-
-```bash
-python3 tools/generate_synthetic_asset.py --check
-python3 tools/validate_asset.py examples/minimal-sh0/manifest.json
-python3 tools/validate_asset.py examples/synthetic-motion-sh3/manifest.json
-python3 -m pip install --require-hashes -r tools/requirements-schema.lock
-python3 tools/check_json_schema.py examples/*/manifest.json
-python3 tools/audit_public_tree.py
-```
-
-只有在有意替换已提交的 procedural fixtures 时才使用 `--force`；日常验证使用
-`--check`，不会修改文件。
-
-## 运行 Lesson 00
+需要 Node.js `^20.19.0` 或 `>=22.12.0`，以及支持 WebGPU 的
+Chrome/Chromium。
 
 ```bash
+code-insiders lessons/4dgs-viewer-phi.code-workspace
 cd lessons
 npm ci
 npm run dev
 ```
 
-浏览器只显示 canvas、最小状态和错误；代码与课程说明保留在 VS Code 中。
+打开 `http://127.0.0.1:5173/00-environment/`。在 VS Code 中修改
+[`lessons/00-environment/main.js`](lessons/00-environment/main.js) 或
+[`lessons/00-environment/environment.wgsl`](lessons/00-environment/environment.wgsl)
+后，Vite 会自动更新浏览器里的渲染结果。验证命令见
+[`lessons/README.md`](lessons/README.md)，课程正文见
+[`lessons/00-environment/LESSON.md`](lessons/00-environment/LESSON.md)。
 
-## Player 支持边界
+## Remote Frame Mode Player
 
-v0.1 的目标渲染端是 Ubuntu 24.04 x86_64、AMD RADV/VA-API 与 GStreamer
-1.24；抽取后的单帧 Vulkan/DMA-BUF/VA-API gate 已在该组合运行，重新完成
-端到端 Chrome/Chromium session 仍是 release gate。其他 Linux GPU 尚未验证；
-macOS 仅作为浏览器接收端，Windows 不在范围内。
+参考渲染端组合是 Ubuntu 24.04 x86_64、AMD RADV/VA-API 和 GStreamer
+1.24。macOS 仅作为接收端；其他渲染端 GPU 尚未验证，Windows 不在支持范围内。
+
+安装 [`player/README.md`](player/README.md) 中列出的系统依赖后运行：
+
+```bash
+cd player
+cargo test --locked
+./scripts/run.sh
+```
+
+服务监听 `127.0.0.1:4191`。另一台机器上的浏览器可以通过 SSH 转发信令：
+
+```bash
+ssh -L 4192:127.0.0.1:4191 user@renderer-host
+```
+
+然后用 Chrome 打开：
+
+```text
+http://127.0.0.1:4192/?jitter_buffer_ms=browser
+```
+
+SSH tunnel 只承载 HTTP 信令。WebRTC 媒体和控制仍要求浏览器能够通过 UDP
+直达渲染端，详见 [`player/README.md`](player/README.md#run-the-webrtc-player)。
+
+浏览器发送相机和时间控制；Linux 进程负责渲染、编码与帧调度。GPU 帧通过
+linear DMA-BUF 跨越 Vulkan/VA-API 边界；如果互操作条件不成立，程序会直接
+失败，不会悄悄切换到 CPU 像素拷贝。
+
+## Asset 一致性验证
+
+仓库包含严格的 explicit-4DGS 资产格式和两个确定性 synthetic 示例：
+
+```bash
+python3 tools/generate_synthetic_asset.py --check
+python3 -m unittest discover -s tests -v
+python3 tools/validate_asset.py \
+  examples/minimal-sh0/manifest.json \
+  examples/synthetic-motion-sh3/manifest.json
+```
+
+完整格式见 [`asset-format/explicit-v1.md`](asset-format/explicit-v1.md)，校准图形
+及其预期视觉特征见 [`examples/README.md`](examples/README.md)。
+
+## 目录结构
+
+```text
+player/        远端渲染器与轻量 WebRTC 浏览器接收端
+lessons/       WebGPU 课程源码与开发环境
+asset-format/  explicit 4DGS manifest 和二进制合同
+examples/      确定性 synthetic 一致性资产
+tools/         资产和 Schema 验证工具
+evidence/      Native reference/comparison receipt Schema
+docs/          架构、平台支持和验证模型
+```
+
+完整技术边界见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)、
+[`docs/SUPPORTED_PLATFORMS.md`](docs/SUPPORTED_PLATFORMS.md) 和
+[`docs/VALIDATION.md`](docs/VALIDATION.md)。

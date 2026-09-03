@@ -1,10 +1,5 @@
 # Third-party inventory
 
-Status: engineering inventory only. CI exports a deterministic inventory of all
-three checked-in lock files and an npm-generated CycloneDX build SBOM. These
-artifacts enumerate resolved packages but do not replace the required license
-compatibility and runtime redistribution review.
-
 ## Source incorporated with modification
 
 ### gsplat
@@ -25,41 +20,22 @@ does not contain a `NOTICE` file.
 - `gstreamer-rs` crates
 - `anyhow`, `bytemuck`, `clap`, `pollster`, `serde`, `serde_json`, `sha2`
 
-Exact transitive Cargo package versions, sources and crate checksums come from
-`player/Cargo.lock` and are exported into the CI lockfile inventory. Cargo
-license expressions are not present in that lock file, so a separate Cargo
-license report remains a release blocker.
+Exact transitive Cargo package versions, sources and crate checksums are in
+`player/Cargo.lock`.
 
 ## JavaScript and Python build dependencies
 
-The interactive lesson build is locked by `lessons/package-lock.json`; CI also
-uses npm itself to emit a CycloneDX 1.5 build SBOM after `npm ci`. JSON Schema
-validation dependencies are hash-locked in `tools/requirements-schema.lock`.
-Both ecosystems are included in the path-free lockfile inventory.
-
-## CI actions
-
-The source workflow permits only these GitHub-maintained actions, each pinned
-to the immutable commit shown in `.github/workflows/ci.yml`:
-
-- `actions/checkout` — `11d5960a326750d5838078e36cf38b85af677262`;
-- `actions/setup-python` — `a26af69be951a213d495a4c3e4e4022e16d87065`;
-- `actions/setup-node` — `49933ea5288caeca8642d1e84afbd3f7d6820020`;
-- `actions/upload-artifact` — `ea165f8d65b6e75b540449e92b4886f43607fa02`.
-
-`tools/audit_public_tree.py` rejects moving tags and action repositories outside
-that allowlist.
+The interactive lesson build is locked by `lessons/package-lock.json`. JSON
+Schema validation dependencies are hash-locked in
+`tools/requirements-schema.lock`.
 
 ## Runtime/system dependencies
 
 - Vulkan loader and driver
-- Mesa/RADV for the currently validated AMD profile
+- Mesa/RADV for the reference AMD profile
 - GStreamer 1.24 core, base, bad, WebRTC, RTP, SRTP and VA-API components
 - VA-API driver
 - libnice and libsrtp
 
-The source release and any future binary/runtime bundle have different redistribution obligations. A binary bundle must not be published until its LGPL and system-package compliance has been reviewed.
-
-## Research/data dependencies
-
-No third-party model or dataset is included. FreeTimeGS++, gsplat and SelfCap may be referenced for interoperability or evaluation provenance, but their code and data remain under their own terms.
+These system libraries are supplied by the host distribution and are not
+included in the source tree.

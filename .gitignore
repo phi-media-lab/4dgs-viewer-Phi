@@ -10,5 +10,5 @@ player/validation/
 lessons/node_modules/
 lessons/dist/
 
-# Hardware and browser receipts are CI artifacts, not source inputs.
+# Generated hardware and browser validation outputs.
 artifacts/

@@ -10,7 +10,7 @@ GPUAdapter → GPUDevice → GPUCanvasContext
            → command encoder → render pass → queue
 ```
 
-The output is deliberately a plain RGB triangle. There is no Gaussian data or
+The output is a plain RGB triangle. There is no Gaussian data or
 4DGS renderer in this lesson.
 
 ## Prerequisites
@@ -104,11 +104,10 @@ the valid lesson.
 - **No adapter:** inspect `chrome://gpu`; a policy or blocklist may be active.
 - **WGSL line/column error:** open `environment.wgsl` at the reported location.
 - **Blank output with PASS:** inspect browser compositing and canvas visibility;
-  the GPU command path has completed, but a screenshot gate is still needed to
-  prove final presentation.
+  `PASS` confirms the GPU command path, not final browser compositing.
 
-## Interface to Lesson 01
+## Planned interface to Lesson 01
 
-Lesson 01 keeps this Device/Canvas/Pipeline/Pass chain. It replaces the three
-constant vertices with one Gaussian record and an analytic splat footprint. It
-still does not introduce radix sort, indirect draw or explicit time.
+Lesson 01 will keep this Device/Canvas/Pipeline/Pass chain. It will replace the
+three constant vertices with one Gaussian record and an analytic splat
+footprint, without introducing radix sort, indirect draw or explicit time.

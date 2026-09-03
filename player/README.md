@@ -12,22 +12,18 @@ explicit 4DGS asset
   → browser <video>
 ```
 
-The browser is intentionally thin. It decodes and presents H.264, sends camera/time controls, and reports receiver progress. It does not download Gaussian data, compile renderer WGSL, or create a `GPUDevice`.
-
-The public implementation uses the `phi.*` protocol namespace, the
-`phi-4dgs-player` crate/binary name and the `PHI_` environment-variable prefix.
+The browser is a thin receiver. It decodes and presents H.264, sends camera/time controls, and reports receiver progress. It does not download Gaussian data, compile renderer WGSL, or create a `GPUDevice`.
 
 ## Supported profile
 
-The extracted implementation has currently passed its one-frame native gate on:
+The reference renderer profile is:
 
 - Ubuntu 24.04 x86_64;
 - AMD RADV Vulkan with external-memory DMA-BUF;
 - a linear DRM AR24 modifier;
 - GStreamer 1.24 with legacy `vaapipostproc` and `vaapih264enc`.
 
-Chrome/Chromium is the intended WebRTC receiver. A fresh end-to-end browser
-session against the final tagged source remains a release gate.
+The receiver requires Chrome/Chromium with H.264 WebRTC support.
 
 Other vendors and distributions are unverified. The HTTP signaling server is
 single-peer and loopback-only in v0.1. On a reachable LAN, an SSH local port
@@ -51,7 +47,7 @@ sudo apt-get install --yes \
   gstreamer1.0-nice gstreamer1.0-vaapi
 ```
 
-The Player does not ship or silently assemble a private GStreamer runtime. Distribution packages own dependency resolution and security updates.
+The Player uses the GStreamer runtime supplied by the host distribution.
 
 ## Build and test
 
@@ -62,14 +58,14 @@ cargo test --locked
 
 ## Establish and validate a one-frame reference
 
-Creating a reference is an explicit, non-overwriting operation. Run it only on
-the target hardware lane. The command writes both raw RGBA8 and a neighboring
-`.rgba8.json` provenance receipt whose initial review status is `UNREVIEWED`:
+Creating a reference is an explicit, non-overwriting operation. Run it on the
+renderer host. The command writes both raw RGBA8 and a neighboring
+`.rgba8.json` receipt whose initial review status is `UNREVIEWED`:
 
 ```bash
 cargo run --release --locked -- \
   --manifest ../examples/synthetic-motion-sh3/manifest.json \
-  --write-golden ../examples/synthetic-motion-sh3/golden/reference.rgba8 \
+  --write-golden validation/reference.rgba8 \
   --width 640 --height 360 \
   --output-dir validation
 ```
@@ -80,15 +76,15 @@ review file:
 ```bash
 ffmpeg -v error -n \
   -f rawvideo -pixel_format rgba -video_size 640x360 \
-  -i ../examples/synthetic-motion-sh3/golden/reference.rgba8 \
-  -frames:v 1 ../examples/synthetic-motion-sh3/golden/reference.png
+  -i validation/reference.rgba8 \
+  -frames:v 1 validation/reference.png
 ```
 
 Inspect that PNG and the receipt's adapter, driver, source and asset hashes.
 Reference creation is not validation: only a separately reviewed reference may
 be used by the comparison command below.
 
-The review transition is deliberately manual and narrow:
+Review a reference:
 
 1. View the PNG at native size and compare it with the expected calibration
    regions in `../examples/README.md`.
@@ -106,7 +102,7 @@ versioned structural contract in
 ```bash
 python3 ../tools/check_json_schema.py \
   --schema ../evidence/remote-native-evidence-v1.schema.json \
-  ../examples/synthetic-motion-sh3/golden/reference.rgba8.json
+  validation/reference.rgba8.json
 ```
 
 The reference form uses schema identifier
@@ -114,9 +110,9 @@ The reference form uses schema identifier
 form uses `phi.4dgs.remote-native.receipt.v1` and ends in `image` plus
 `transport`. Both forms pin the Rust toolchain, source bundle, shader bundle,
 browser receiver build, asset manifest, geometry and optional appearance by
-value or SHA-256. A null `git_commit` is allowed for local pre-commit capture;
-release evidence must set `PHI_GIT_COMMIT` to the commit being tested **when
-compiling the binary** (`option_env!` captures it at build time). The actual
+value or SHA-256. `git_commit` may be null for local captures. To bind a receipt
+to a revision, set `PHI_GIT_COMMIT` to that commit **when compiling the
+binary** (`option_env!` captures it at build time). The actual
 `rustc --version` release is injected by `build.rs`; evidence mode refuses a
 binary whose compiler release differs from the pinned `1.95.0` toolchain.
 
@@ -125,7 +121,7 @@ Normal evidence mode consumes that reviewed reference:
 ```bash
 cargo run --release --locked -- \
   --manifest ../examples/synthetic-motion-sh3/manifest.json \
-  --golden ../examples/synthetic-motion-sh3/golden/reference.rgba8 \
+  --golden validation/reference.rgba8 \
   --width 640 --height 360 \
   --output-dir validation
 ```
@@ -133,15 +129,14 @@ cargo run --release --locked -- \
 The comparison command requires the neighboring `.rgba8.json` receipt and
 refuses to render unless it is reference v1 with `review_status == "REVIEWED"`.
 Before GPU work it verifies the raw byte count and hash, asset name and hashes,
-and frame width, height and time. It deliberately does not require the old
+and frame width, height and time. It does not require the old
 reference's source hash to equal the current renderer, because that would make
 cross-version regression comparison impossible. Runtime enforcement checks
 only this required subset; run the strict Schema command above to reject other
-structural errors and duplicate keys before accepting release evidence.
+structural errors and duplicate keys before accepting revision-bound evidence.
 
-`--write-golden` refuses to overwrite either an existing frame or receipt. A
-portable CI runner must never create a new golden and then call that validation
-in the same job.
+`--write-golden` refuses to overwrite either an existing frame or receipt. Do
+not create and compare a new golden in the same run.
 
 ## Run the WebRTC player
 
@@ -202,14 +197,18 @@ quality improvements.
 
 ## Protocol compatibility
 
-The HTTP offer shape, two DataChannel roles and their JSON message variants are private v0.1
-interfaces between the server and its embedded `web/client.js`. They are
-version-checked, but are not a public SDK contract. Deploy the browser file and
-server from the same release tag; independent clients may break between minor
-releases until a separate protocol specification is published. Unknown or
-unlabeled DataChannels are ignored. Incoming string messages are capped at 64
-KiB before JSON parsing, reject unknown JSON fields, and are accepted only on
-the channel assigned to that message class.
+The HTTP offer shape, two DataChannel roles and their JSON message variants are
+implementation-internal v0.1 interfaces between the server and its embedded
+`web/client.js`; they are not a stable public SDK. Deploy the browser file and
+server from the same revision.
+
+- `control` accepts orbit, zoom and camera-state messages, with receiver stats
+  and progress accepted as a fallback.
+- `config` accepts reliable camera-state tails, reset, time/playback changes,
+  keyframe requests, receiver stats and receiver progress.
+
+Unknown or unlabeled DataChannels are ignored. Incoming string messages are
+capped at 64 KiB before JSON parsing and reject unknown JSON fields.
 
 ## Edit/restart loop
 
@@ -231,6 +230,6 @@ tunnel, relays WebRTC UDP, nor owns the renderer.
 
 - The HTTP/signaling listener rejects non-loopback bind addresses in v0.1.
 - The renderer requires Vulkan external-memory support.
-- Only linear modifier `0` is accepted by the validated media path.
+- Only linear modifier `0` is accepted by the reference media path.
 - Unsupported interop fails closed; no hidden CPU pixel-copy fallback exists.
-- Network tuning and public deployment are deliberately outside this first release.
+- Network tuning and public deployment are not supported in v0.1.

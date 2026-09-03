@@ -1,10 +1,8 @@
 # 4DGS WebGPU lessons
 
-This staging slice contains only Lesson 00. The extraction/rewrite decision for
-the remaining curriculum is recorded in [`ROADMAP.md`](ROADMAP.md). Lesson 00
-intentionally has no dependency
-on client-side Gaussian streaming, progressive loading, 4DGS assets or a UI
-framework.
+Lesson 00 implements the minimal WebGPU host/shader pipeline with native
+JavaScript and WGSL. The planned progression from one Gaussian to a complete
+synthetic 4DGS asset is listed in [`ROADMAP.md`](ROADMAP.md).
 
 ```bash
 code-insiders 4dgs-viewer-phi.code-workspace # or: code ...
@@ -24,6 +22,9 @@ npm run build
 npx vite build --base=/4dgs-viewer-Phi/ --outDir=dist-pages
 ```
 
-The last command exercises a GitHub Pages-style repository base path. A real GPU
-browser smoke should wait for `window.__LESSON_RESULT__.status` and require
-`PASS`; source tests and a software browser cannot certify hardware WebGPU.
+The last command exercises a GitHub Pages-style repository base path. On a
+WebGPU-capable browser, wait for `window.__LESSON_RESULT__.status` and require
+`PASS` to confirm that the GPU command chain completed.
+
+Workflow inspiration: [WebGPU Unleashed](https://github.com/shi-yan/webgpuunleashed)
+by Shi Yan.
