@@ -9,8 +9,9 @@
 
 Player 在 Linux GPU 上渲染 explicit 4D Gaussian asset，并把编码后的帧发送给
 轻量浏览器接收端。课程直接呈现 JavaScript 宿主代码、WGSL 阶段、GPU 命令和
-数值验证；VS Code 负责代码，浏览器负责运行和显示。训练、模型转换和客户端
-Gaussian 串流不在本仓库范围内。
+数值验证；VS Code 负责代码，浏览器负责运行和显示。训练和客户端 Gaussian
+串流不在本仓库范围内；仓库提供一个确定性的离线 bridge，把经过验证的
+Pixel4DGS AssetBundle 导入 Player 的 explicit-v1 格式。
 
 ## WebGPU 课程
 
@@ -89,6 +90,26 @@ python3 tools/validate_asset.py \
 完整格式见 [`asset-format/explicit-v1.md`](asset-format/explicit-v1.md)，校准图形
 及其预期视觉特征见 [`examples/README.md`](examples/README.md)。
 
+### 导入 Pixel4DGS AssetBundle
+
+Bridge 只接受用于推理的 `p2g.asset_bundle.v1` 目录及其哈希绑定的
+`p2g.camera_path.v1`，不接受训练 checkpoint：
+
+```bash
+python3 tools/convert_p2g_asset.py \
+  /path/to/asset-bundle-v1 \
+  /path/to/camera_path.json \
+  /new/private/output-directory \
+  --name my-4dgs-asset
+```
+
+工具会在写入前闭合验证源文件哈希、tensor 和相机语义；目标已存在时拒绝覆盖；
+Pixel4DGS classic raster ABI 会被显式写入 manifest。所选相机的归一化时间会
+写入 manifest `time.initial`，由 Player 自动使用；转换 receipt 会重复记录该值
+以供审计。源资产的再分发限制会保留在 provenance 中，仓库不包含转换后的
+第三方模型。详见
+[`docs/P2G_ASSET_BRIDGE.md`](docs/P2G_ASSET_BRIDGE.md)。
+
 ## 目录结构
 
 ```text
@@ -96,7 +117,7 @@ player/        远端渲染器与轻量 WebRTC 浏览器接收端
 lessons/       WebGPU 课程源码与开发环境
 asset-format/  explicit 4DGS manifest 和二进制合同
 examples/      确定性 synthetic 一致性资产
-tools/         资产和 Schema 验证工具
+tools/         资产转换、比较和 Schema 验证工具
 evidence/      Native reference/comparison receipt Schema
 docs/          架构、平台支持和验证模型
 ```

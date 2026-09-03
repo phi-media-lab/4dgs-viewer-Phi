@@ -1,7 +1,5 @@
 #include "./common.wgsl"
 
-const TRANSMITTANCE_MIN: f32 = 1.0 / 255.0;
-
 @group(0) @binding(0) var<uniform> scene: SceneUniform;
 @group(0) @binding(1) var<storage, read> screens: array<ScreenGaussian>;
 @group(0) @binding(2) var<storage, read> sorted_ids: array<u32>;
@@ -42,11 +40,17 @@ fn composite(rank: u32, pixel: vec2<f32>, accum: ptr<function, vec3<f32>>,
     let exponent = -0.5 * (conic.x * delta.x * delta.x +
         2.0 * conic.y * delta.x * delta.y + conic.z * delta.y * delta.y);
     if exponent > 0.0 { return false; }
-    let alpha = min(0.99, gaussian.conic_opacity.w * exp(exponent));
-    if alpha < scene.time_policy.z || !(alpha == alpha) { return false; }
+    let alpha = min(scene.raster_policy.x, gaussian.conic_opacity.w * exp(exponent));
+    if alpha < scene.raster_policy.y || !(alpha == alpha) { return false; }
+    let next_transmittance = *transmittance * (1.0 - alpha);
+    let explicit_policy =
+        (scene.flags.w & SCENE_FLAG_EXPLICIT_RASTER_POLICY) != 0u;
+    if explicit_policy && next_transmittance <= scene.raster_policy.z {
+        return true;
+    }
     *accum += *transmittance * gaussian.color_depth.xyz * alpha;
-    *transmittance *= 1.0 - alpha;
-    return true;
+    *transmittance = next_transmittance;
+    return !explicit_policy && *transmittance < scene.raster_policy.z;
 }
 
 // This is the single compositing implementation used by both the native
@@ -76,6 +80,7 @@ fn render_tile_pixel(local_index: u32, local_id: vec3<u32>,
     var transmittance = 1.0;
     var tests = 0u;
     var done = !valid_pixel;
+    var early_terminated = false;
     var budget_limited = false;
 
     // Exact rank bits are visited in increasing global depth rank. Unlike atomic
@@ -123,8 +128,8 @@ fn render_tile_pixel(local_index: u32, local_id: vec3<u32>,
                                         done = true;
                                     } else {
                                         tests += 1u;
-                                        _ = composite(rank, pixel, &color, &transmittance);
-                                        if transmittance < max(TRANSMITTANCE_MIN, scene.time_policy.z) {
+                                        if composite(rank, pixel, &color, &transmittance) {
+                                            early_terminated = true;
                                             done = true;
                                         }
                                     }
@@ -140,7 +145,7 @@ fn render_tile_pixel(local_index: u32, local_id: vec3<u32>,
         }
     }
 
-    let early = u32(valid_pixel && transmittance < max(TRANSMITTANCE_MIN, scene.time_policy.z));
+    let early = u32(valid_pixel && early_terminated);
     let limited = u32(valid_pixel && budget_limited);
     telemetry_tests[local_index] = select(0u, tests, telemetry_enabled);
     telemetry_early[local_index] = select(0u, early, telemetry_enabled);

@@ -49,6 +49,12 @@ quaternion must have squared length greater than `1e-12` and finite in `f32`.
 Numerically degenerate projected covariance is rejected by the renderer and
 reported by its invalid counter.
 
+`time.initial` is the normalized time the Player uses for its first frame when
+no `--time` override is supplied. It must be in the closed interval `[0,1]`.
+The field is optional so manifests written before it was introduced remain
+valid; omission preserves the previous Player default of `0.5084746`. New
+manifests should declare it explicitly.
+
 ## SH3 sidecar
 
 `raw-sh3` assets include one 92-byte record per Gaussian:
@@ -110,12 +116,55 @@ H/source_height)`, scales both focal lengths by `s`, and adds half of the unused
 dimension to the principal point. This is centered letterboxing/cropping-free
 fit, not independent x/y stretching.
 
-RGB values are composited in the manifest's `display-srgb` working space. A
-second linear-to-sRGB transfer is not part of this contract. Output is opaque;
-the fourth background component must therefore be exactly `1` and is not used
-as a separate transparency channel.
+The render contract has two supported color paths:
 
-The player reads all three policy values from the manifest. `temporal_threshold` controls temporal culling, `alpha_min` is the idle compositing/culling floor and the lower bound for adaptive interaction LOD, and `low_pass` is the diagonal screen-space covariance term used by the preprocess shader. They are data, not documentation-only hints.
+- `working_space: "display-srgb"` with an omitted or `"identity"`
+  `output_transfer` composites display-referred values and writes them directly;
+- `working_space: "linear-rgb"` with `output_transfer: "srgb"` composites the
+  Gaussian colors and background in linear RGB, then applies the IEC 61966-2-1
+  piecewise transfer once to the resolved opaque pixel.
+
+The latter path preserves assets trained and evaluated in linear RGB; applying
+the transfer to individual SH coefficients would be incorrect because it is
+nonlinear. Output is opaque, so the fourth background component must be exactly
+`1` and is not used as a separate transparency channel.
+
+The player reads every policy value from the manifest. `temporal_threshold`
+controls temporal culling. `alpha_min` is the preprocess opacity/footprint
+cutoff and the lower bound for adaptive interaction LOD. `low_pass` is the
+diagonal screen-space covariance term used by the preprocess shader.
+`opacity_compensation` selects whether opacity is multiplied by
+`sqrt(det(covariance_before_low_pass) / det(covariance_after_low_pass))`.
+`"determinant-ratio"` is the default when the field is omitted and matches an
+antialiased gsplat profile; `"none"` retains the unmodified opacity of the
+classic profile.
+
+The optional raster-policy trio `alpha_cap`, `pixel_alpha_min`, and
+`transmittance_epsilon` is all-or-none. When present, the compositor clamps a
+candidate alpha to `alpha_cap`, rejects it when it is strictly below
+`pixel_alpha_min`, and computes `next_T = T * (1 - alpha)`. If
+`next_T <= transmittance_epsilon`, compositing stops before that candidate is
+added and before `T` is updated. This is the termination order used by gsplat's
+classic rasterizer. An explicit policy also disables Phi's historical hidden
+`2048 px` projected-radius cap; support is determined by the declared opacity
+cutoff instead. The Pixel4DGS/gsplat classic profile is therefore:
+
+```json
+{
+  "opacity_compensation": "none",
+  "alpha_cap": 0.999,
+  "pixel_alpha_min": 0.00392156862745098,
+  "transmittance_epsilon": 0.0001
+}
+```
+
+Existing manifests that omit the entire trio retain the original Phi behavior:
+the alpha cap is `0.99`, the pixel cutoff is the effective per-frame
+`alpha_min`, and compositing stops after adding a candidate when the remaining
+transmittance is strictly below `max(1/255, effective alpha_min)`. They also
+retain the historical `2048 px` projected-radius cap. Presence of the trio is
+therefore an explicit renderer-ABI choice, not a silent change to the v1
+defaults. All policy values are executable data, not documentation-only hints.
 
 ## Integrity
 

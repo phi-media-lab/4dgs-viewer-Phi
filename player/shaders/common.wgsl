@@ -12,7 +12,10 @@ const SH_C3_3: f32 = 0.3731763325901154;
 const SH_C3_4: f32 = -0.4570457994644658;
 const SH_C3_5: f32 = 1.445305721320277;
 const SH_C3_6: f32 = -0.5900435899266435;
-const MAX_RADIUS: f32 = 2048.0;
+// Historical Phi manifests were rendered with this projected-footprint cap.
+// It is intentionally bypassed by an explicit raster policy because gsplat
+// classic has no equivalent hidden maximum-radius rule.
+const LEGACY_MAX_RADIUS: f32 = 2048.0;
 const TILE_SIZE: u32 = 16u;
 // One bit represents a short, consecutive run of global depth ranks. Tile masks
 // are conservative: the renderer tests every rank in a present run, so false
@@ -22,6 +25,9 @@ const TILE_MASK_SHARDS: u32 = 3u;
 const INTERACTIVE_MAX_PIXEL_TESTS: u32 = 2048u;
 const SCENE_FLAG_TELEMETRY: u32 = 1u;
 const SCENE_FLAG_INTERACTIVE: u32 = 2u;
+const SCENE_FLAG_LINEAR_TO_SRGB: u32 = 4u;
+const SCENE_FLAG_OPACITY_COMPENSATION: u32 = 8u;
+const SCENE_FLAG_EXPLICIT_RASTER_POLICY: u32 = 16u;
 const PERSISTENT_MASK_ADDRESS_OVERFLOW: u32 = 1u;
 const PERSISTENT_INTERACTION_BUDGET_HIT: u32 = 2u;
 
@@ -44,7 +50,7 @@ struct SceneUniform {
     intrinsics: vec4<f32>,
     viewport: vec4<f32>,
     time_policy: vec4<f32>,
-    background: vec4<f32>,
+    raster_policy: vec4<f32>,
     camera_position_sh: vec4<f32>,
     flags: vec4<u32>,
 };

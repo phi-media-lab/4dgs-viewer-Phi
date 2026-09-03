@@ -6,6 +6,9 @@ not a single coupled application.
 ## Remote Frame Mode Player
 
 ```text
+Pixel4DGS AssetBundle + camera path
+                         │ offline, hash-verified bridge
+                         ▼
 explicit-v1 manifest + geometry + optional SH3
                          │
                          ▼
@@ -81,4 +84,8 @@ slot is `null`, so its complete pipeline executes without an asset request.
 
 The two products share the first-principles vocabulary of host control, shader compilation, resource layout and validation. They do not share a runtime device or frontend framework. The course is browser WebGPU; the Player is Linux wgpu/Vulkan with a thin WebRTC receiver.
 
-Training, model conversion and Client GS streaming are outside this repository.
+Training and Client GS streaming are outside this repository. Model conversion
+is deliberately narrower: `tools/convert_p2g_asset.py` is an offline import
+boundary for the versioned, inference-only Pixel4DGS AssetBundle contract. It
+does not read a training run, checkpoint, dataset or optimizer state. The
+converted Gaussian payload remains server-side in Remote Frame Mode.

@@ -138,12 +138,16 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let low_pass = scene.camera_position_sh.w;
     let cov2 = cov2_original + mat2x2<f32>(vec2<f32>(low_pass, 0.0), vec2<f32>(0.0, low_pass));
     let det_filtered = determinant(cov2);
-    if (!(det_original > 0.0 && det_filtered > 0.0) || !finite_scalar(det_filtered)) {
+    let compensate_opacity = (scene.flags.w & SCENE_FLAG_OPACITY_COMPENSATION) != 0u;
+    if (!(det_filtered > 0.0) || !finite_scalar(det_filtered) ||
+        (compensate_opacity && !(det_original > 0.0))) {
         atomicAdd(&counters.invalid_count, 1u);
         return;
     }
 
-    opacity *= sqrt(det_original / det_filtered);
+    if compensate_opacity {
+        opacity *= sqrt(det_original / det_filtered);
+    }
     if (!(opacity > alpha_min)) {
         atomicAdd(&counters.culled_footprint, 1u);
         return;
@@ -152,7 +156,17 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let conic_xy = -cov2[0][1] / det_filtered;
     let conic_yy = cov2[0][0] / det_filtered;
     let k = 2.0 * log(opacity / alpha_min);
-    let radii = min(sqrt(k * vec2<f32>(cov2[0][0], cov2[1][1])), vec2<f32>(MAX_RADIUS));
+    let projected_radii = sqrt(k * vec2<f32>(cov2[0][0], cov2[1][1]));
+    let explicit_policy =
+        (scene.flags.w & SCENE_FLAG_EXPLICIT_RASTER_POLICY) != 0u;
+    // Preserve the old Phi bound only for manifests that omit the explicit
+    // raster ABI. Pixel4DGS/gsplat classic declares radius_clip == 0 and must
+    // not acquire an unmanifested 2048 px support clamp during conversion.
+    let radii = select(
+        min(projected_radii, vec2<f32>(LEGACY_MAX_RADIUS)),
+        projected_radii,
+        explicit_policy,
+    );
     if (!finite3(vec3<f32>(radii, opacity))) {
         atomicAdd(&counters.invalid_count, 1u);
         return;

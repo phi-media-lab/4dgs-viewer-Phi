@@ -32,6 +32,11 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
         let row1 = mix(textureLoad(accumulation, p01, 0), textureLoad(accumulation, p11, 0), weight.x);
         accum = mix(row0, row1, weight.y);
     }
-    let display_rgb = accum.rgb + accum.a * background.rgb;
+    var display_rgb = accum.rgb + accum.a * background.rgb;
+    if (scene.flags.w & SCENE_FLAG_LINEAR_TO_SRGB) != 0u {
+        let low = 12.92 * display_rgb;
+        let high = 1.055 * pow(max(display_rgb, vec3<f32>(0.0)), vec3<f32>(1.0 / 2.4)) - 0.055;
+        display_rgb = select(high, low, display_rgb <= vec3<f32>(0.0031308));
+    }
     return vec4<f32>(clamp(display_rgb, vec3<f32>(0.0), vec3<f32>(1.0)), 1.0);
 }

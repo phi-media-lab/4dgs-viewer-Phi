@@ -22,6 +22,7 @@ HEADER_BYTES = 64
 RECORD_BYTES = 80
 SH3_RECORD_BYTES = 92
 SH_C0 = 0.28209479177387814
+REFERENCE_TIME = 0.5084746
 
 # The weights intentionally sum to the public fixture's default count. Keeping
 # the layout as named regions makes smaller test fixtures preserve every
@@ -233,7 +234,7 @@ def manifest(
         purpose = {
             "id": "4d-calibration-target",
             "description": "analytic non-artistic target for projection, depth, time and SH checks",
-            "reference_time": 0.5084746,
+            "reference_time": REFERENCE_TIME,
             "regions": [
                 {
                     "id": "asymmetric-frame",
@@ -283,7 +284,12 @@ def manifest(
             "bytes": len(geometry),
             "sha256": hashlib.sha256(geometry).hexdigest(),
         },
-        "time": {"domain": [0, 1], "max_duration": 1.2, "units": "normalized"},
+        "time": {
+            "domain": [0, 1],
+            "initial": REFERENCE_TIME,
+            "max_duration": 1.2,
+            "units": "normalized",
+        },
         "representation": {
             "velocity": "explicit-linear",
             "rotation": "raw-xyzw",

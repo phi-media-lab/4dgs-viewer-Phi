@@ -481,8 +481,9 @@ struct Args {
     width: u32,
     #[arg(long, default_value_t = 360)]
     height: u32,
-    #[arg(long, default_value_t = 0.5084746)]
-    time: f32,
+    /// Normalized render time; overrides manifest time.initial when supplied.
+    #[arg(long)]
+    time: Option<f32>,
     /// Reference image required in evidence mode (when --serve is absent).
     #[arg(long, conflicts_with_all = ["write_golden", "serve"])]
     golden: Option<PathBuf>,
@@ -619,10 +620,6 @@ fn main() -> Result<()> {
     ensure!(
         args.width > 0 && args.height > 0,
         "resolution must be non-zero"
-    );
-    ensure!(
-        args.time.is_finite() && (0.0..=1.0).contains(&args.time),
-        "time must be finite and in the normalized [0, 1] domain"
     );
     ensure!(
         args.bind.is_loopback(),
@@ -888,25 +885,29 @@ fn resolve_interaction_alpha_min(base_alpha_min: f32, override_value: Option<f32
     Ok(alpha_min)
 }
 
+fn resolve_render_time(manifest_initial: f32, override_value: Option<f32>) -> Result<f32> {
+    let time = override_value.unwrap_or(manifest_initial);
+    ensure!(
+        time.is_finite() && (0.0..=1.0).contains(&time),
+        "time must be finite and in the normalized [0, 1] domain"
+    );
+    Ok(time)
+}
+
 fn validate(args: Args) -> Result<()> {
     ensure!(
         BUILD_RUSTC_VERSION == PINNED_RUST_TOOLCHAIN,
         "evidence mode requires rustc {PINNED_RUST_TOOLCHAIN}, but this binary was built with {BUILD_RUSTC_VERSION}"
     );
     let asset = Asset::load(&args.manifest)?;
+    let time = resolve_render_time(asset.manifest.time.initial, args.time)?;
     let interaction_alpha_min =
         resolve_interaction_alpha_min(asset.manifest.policy.alpha_min, args.interaction_alpha_min)?;
     let reviewed_golden = args
         .golden
         .as_deref()
         .map(|path| {
-            load_reviewed_golden(
-                path,
-                &asset_identity(&asset),
-                args.width,
-                args.height,
-                args.time,
-            )
+            load_reviewed_golden(path, &asset_identity(&asset), args.width, args.height, time)
         })
         .transpose()?;
     ensure!(
@@ -924,7 +925,7 @@ fn validate(args: Args) -> Result<()> {
         &shader_dir,
         args.width,
         args.height,
-        args.time,
+        time,
         alpha_min,
         !args.raster_reference,
     ))?;
@@ -1045,6 +1046,7 @@ fn serve(args: Args) -> Result<()> {
     ensure!((1..=240).contains(&args.fps), "fps must be in 1..=240");
     ensure!(args.slots >= 2, "at least two DMA-BUF slots are required");
     let asset = Asset::load(&args.manifest)?;
+    let time = resolve_render_time(asset.manifest.time.initial, args.time)?;
     let base_alpha_min = asset.manifest.policy.alpha_min;
     let interaction_alpha_min =
         resolve_interaction_alpha_min(base_alpha_min, args.interaction_alpha_min)?;
@@ -1090,7 +1092,7 @@ fn serve(args: Args) -> Result<()> {
     )?;
     let _http = streaming::start_http(args.bind, args.port, transport.signaler())?;
 
-    let mut camera = CameraController::new(asset.manifest.camera.fixed.clone(), args.time);
+    let mut camera = CameraController::new(asset.manifest.camera.fixed.clone(), time);
     let frame_period = Duration::from_secs_f64(1.0 / args.fps as f64);
     let mut frame_id = 1_u64;
     let mut cadence_slot = 0_u64;
@@ -1691,6 +1693,7 @@ mod adaptive_lod_tests {
         assert_eq!(args.golden, None);
         assert_eq!(args.write_golden, None);
         assert_eq!(args.shaders, None);
+        assert_eq!(args.time, None);
         assert_eq!(args.interaction_alpha_min, None);
         assert!(args.bind.is_loopback());
         assert_eq!(args.port, 4191);
@@ -1809,7 +1812,15 @@ mod adaptive_lod_tests {
             "0.25",
         ])
         .unwrap();
-        assert_eq!(args.time, 0.25);
+        assert_eq!(args.time, Some(0.25));
+    }
+
+    #[test]
+    fn manifest_initial_time_is_used_unless_the_cli_overrides_it() {
+        assert_eq!(resolve_render_time(0.125, None).unwrap(), 0.125);
+        assert_eq!(resolve_render_time(0.125, Some(0.75)).unwrap(), 0.75);
+        assert!(resolve_render_time(0.125, Some(-0.01)).is_err());
+        assert!(resolve_render_time(0.125, Some(f32::NAN)).is_err());
     }
 
     #[test]

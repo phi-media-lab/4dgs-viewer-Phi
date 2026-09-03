@@ -13,7 +13,7 @@ SH0-only loader path. This is a format smoke test, not a visual reference.
 
 This 4,096-Gaussian scene is an analytic **4D calibration target**, not a
 decorative sample. At the fixed 640×360 camera and reference time
-`t = 0.5084746`, its structure is:
+`t = 0.5084746` (declared as manifest `time.initial`), its structure is:
 
 ```text
 cyan solid corner ┌─ 4DGS TEST ─────────────── SH + three probes

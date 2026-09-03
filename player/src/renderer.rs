@@ -23,6 +23,13 @@ const TIMESTAMP_BYTES: u64 = TIMESTAMP_COUNT as u64 * 8;
 const PERSISTENT_FLAG_BYTES: u64 = 4;
 const TELEMETRY_BYTES: u64 = COUNTER_BYTES + TIMESTAMP_BYTES + PERSISTENT_FLAG_BYTES;
 const TELEMETRY_RING_SIZE: usize = 8;
+const LEGACY_ALPHA_CAP: f32 = 0.99;
+const LEGACY_TRANSMITTANCE_MIN: f32 = 1.0 / 255.0;
+const SCENE_FLAG_TELEMETRY: u32 = 1;
+const SCENE_FLAG_INTERACTIVE: u32 = 2;
+const SCENE_FLAG_LINEAR_TO_SRGB: u32 = 4;
+const SCENE_FLAG_OPACITY_COMPENSATION: u32 = 8;
+const SCENE_FLAG_EXPLICIT_RASTER_POLICY: u32 = 16;
 pub const INTERACTIVE_ALPHA_MIN: f32 = 8.0 / 255.0;
 
 #[derive(Debug, Clone, Copy, Default, Serialize)]
@@ -70,6 +77,15 @@ pub struct CameraUniform {
     pub near: f32,
     pub far: f32,
     pub eye: [f32; 3],
+}
+
+#[derive(Debug, Clone, Copy)]
+struct SceneRuntime {
+    time: f32,
+    temporal_cull: bool,
+    alpha_min: f32,
+    telemetry_enabled: bool,
+    interactive: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -372,17 +388,19 @@ impl StreamRenderer {
         let telemetry_slot = self.telemetry.acquire();
         let telemetry_enabled = telemetry_slot.is_some();
         let interactive = alpha_min > self.manifest.policy.alpha_min + f32::EPSILON;
-        let mut scene = scene_uniform_values(
+        let scene = scene_uniform_values(
             &self.manifest,
             self.sh_degree,
             camera,
             [render_width, render_height],
-            time,
-            temporal_cull,
-            alpha_min,
+            SceneRuntime {
+                time,
+                temporal_cull,
+                alpha_min,
+                telemetry_enabled,
+                interactive,
+            },
         );
-        let scene_flags = u32::from(telemetry_enabled) | (u32::from(interactive) << 1);
-        scene[156..160].copy_from_slice(&scene_flags.to_ne_bytes());
         self.queue.write_buffer(&self.state.scene, 0, &scene);
         let mut encoder = self
             .device
@@ -615,6 +633,10 @@ pub async fn render_once(
 ) -> Result<FrameResult> {
     ensure!(width > 0 && height > 0, "resolution must be non-zero");
     ensure!(alpha_min.is_finite() && alpha_min > 0.0 && alpha_min < 1.0);
+    ensure!(
+        tile_renderer || asset.manifest.policy.transmittance_epsilon.is_none(),
+        "the direct raster reference path cannot honor explicit transmittance termination; use the tile renderer"
+    );
     let mut instance_desc = wgpu::InstanceDescriptor::new_without_display_handle();
     instance_desc.backends = wgpu::Backends::VULKAN;
     let instance = wgpu::Instance::new(instance_desc);
@@ -649,10 +671,19 @@ pub async fn render_once(
     let state = FrameState::new(&device, asset);
     let pipelines = Pipelines::new(&device, shader_dir)?;
     let bindings = Bindings::new(&device, &state, &pipelines);
-    let mut scene_bytes = scene_uniform(asset, width, height, time, true, alpha_min);
     let interactive = alpha_min > asset.manifest.policy.alpha_min + f32::EPSILON;
-    let scene_flags = 1_u32 | (u32::from(interactive) << 1);
-    scene_bytes[156..160].copy_from_slice(&scene_flags.to_ne_bytes());
+    let scene_bytes = scene_uniform(
+        asset,
+        width,
+        height,
+        SceneRuntime {
+            time,
+            temporal_cull: true,
+            alpha_min,
+            telemetry_enabled: true,
+            interactive,
+        },
+    );
     queue.write_buffer(&state.scene, 0, &scene_bytes);
     queue.write_buffer(
         &state.background,
@@ -972,23 +1003,14 @@ fn compute_indirect(
     pass.dispatch_workgroups_indirect(dispatch, 0);
 }
 
-fn scene_uniform(
-    asset: &Asset,
-    width: u32,
-    height: u32,
-    time: f32,
-    temporal_cull: bool,
-    alpha_min: f32,
-) -> [u8; 160] {
+fn scene_uniform(asset: &Asset, width: u32, height: u32, runtime: SceneRuntime) -> [u8; 160] {
     let camera = fixed_camera(&asset.manifest.camera.fixed, width, height);
     scene_uniform_values(
         &asset.manifest,
         asset.sh_degree(),
         &camera,
         [width, height],
-        time,
-        temporal_cull,
-        alpha_min,
+        runtime,
     )
 }
 
@@ -997,9 +1019,7 @@ fn scene_uniform_values(
     sh_degree: u32,
     camera: &CameraUniform,
     viewport: [u32; 2],
-    time: f32,
-    temporal_cull: bool,
-    alpha_min: f32,
+    runtime: SceneRuntime,
 ) -> [u8; 160] {
     let [width, height] = viewport;
     let mut words = [0_u32; 40];
@@ -1014,13 +1034,17 @@ fn scene_uniform_values(
         &mut words,
         24,
         &[
-            time,
+            runtime.time,
             manifest.time.max_duration,
-            alpha_min,
+            runtime.alpha_min,
             manifest.policy.temporal_threshold,
         ],
     );
-    set_floats(&mut words, 28, &manifest.render.background);
+    set_floats(
+        &mut words,
+        28,
+        &raster_policy_values(manifest, runtime.alpha_min),
+    );
     set_floats(
         &mut words,
         32,
@@ -1031,8 +1055,63 @@ fn scene_uniform_values(
             manifest.policy.low_pass,
         ],
     );
-    words[36..40].copy_from_slice(&[manifest.gaussian_count, temporal_cull as u32, sh_degree, 0]);
+    words[36..40].copy_from_slice(&[
+        manifest.gaussian_count,
+        runtime.temporal_cull as u32,
+        sh_degree,
+        scene_flags(manifest, runtime.telemetry_enabled, runtime.interactive),
+    ]);
     bytemuck::cast(words)
+}
+
+fn raster_policy_values(manifest: &crate::asset::Manifest, alpha_min: f32) -> [f32; 4] {
+    match (
+        manifest.policy.alpha_cap,
+        manifest.policy.pixel_alpha_min,
+        manifest.policy.transmittance_epsilon,
+    ) {
+        (Some(alpha_cap), Some(pixel_alpha_min), Some(transmittance_epsilon)) => {
+            [alpha_cap, pixel_alpha_min, transmittance_epsilon, 0.0]
+        }
+        (None, None, None) => [
+            LEGACY_ALPHA_CAP,
+            alpha_min,
+            LEGACY_TRANSMITTANCE_MIN.max(alpha_min),
+            0.0,
+        ],
+        _ => unreachable!("validated raster policy is either absent or complete"),
+    }
+}
+
+fn asset_flags(manifest: &crate::asset::Manifest) -> u32 {
+    let linear_to_srgb =
+        u32::from(manifest.render.working_space == "linear-rgb") * SCENE_FLAG_LINEAR_TO_SRGB;
+    let opacity_compensation = u32::from(
+        manifest
+            .policy
+            .opacity_compensation
+            .as_deref()
+            .unwrap_or("determinant-ratio")
+            == "determinant-ratio",
+    ) * SCENE_FLAG_OPACITY_COMPENSATION;
+    let explicit_raster_policy =
+        u32::from(manifest.policy.alpha_cap.is_some()) * SCENE_FLAG_EXPLICIT_RASTER_POLICY;
+    linear_to_srgb | opacity_compensation | explicit_raster_policy
+}
+
+fn scene_flags(
+    manifest: &crate::asset::Manifest,
+    telemetry_enabled: bool,
+    interactive: bool,
+) -> u32 {
+    let mut flags = asset_flags(manifest);
+    if telemetry_enabled {
+        flags |= SCENE_FLAG_TELEMETRY;
+    }
+    if interactive {
+        flags |= SCENE_FLAG_INTERACTIVE;
+    }
+    flags
 }
 
 fn set_floats(target: &mut [u32], offset: usize, values: &[f32]) {
@@ -1506,5 +1585,93 @@ fn b(binding: u32, buffer: &wgpu::Buffer) -> wgpu::BindGroupEntry<'_> {
     wgpu::BindGroupEntry {
         binding,
         resource: buffer.as_entire_binding(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{fs, path::Path};
+
+    use crate::asset::Manifest;
+
+    use super::{
+        LEGACY_ALPHA_CAP, LEGACY_TRANSMITTANCE_MIN, SCENE_FLAG_EXPLICIT_RASTER_POLICY,
+        SCENE_FLAG_INTERACTIVE, SCENE_FLAG_LINEAR_TO_SRGB, SCENE_FLAG_OPACITY_COMPENSATION,
+        SCENE_FLAG_TELEMETRY, SceneRuntime, fixed_camera, scene_uniform_values,
+    };
+
+    fn manifest() -> Manifest {
+        let path =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples/minimal-sh0/manifest.json");
+        serde_json::from_slice(&fs::read(path).unwrap()).unwrap()
+    }
+
+    fn word(scene: &[u8; 160], index: usize) -> u32 {
+        u32::from_ne_bytes(scene[index * 4..index * 4 + 4].try_into().unwrap())
+    }
+
+    fn scalar(scene: &[u8; 160], index: usize) -> f32 {
+        f32::from_bits(word(scene, index))
+    }
+
+    #[test]
+    fn omitted_raster_policy_preserves_legacy_uniform_values() {
+        let manifest = manifest();
+        let alpha_min = 8.0 / 255.0;
+        let camera = fixed_camera(&manifest.camera.fixed, 640, 360);
+        let scene = scene_uniform_values(
+            &manifest,
+            0,
+            &camera,
+            [640, 360],
+            SceneRuntime {
+                time: 0.5,
+                temporal_cull: true,
+                alpha_min,
+                telemetry_enabled: true,
+                interactive: true,
+            },
+        );
+
+        assert_eq!(scalar(&scene, 28), LEGACY_ALPHA_CAP);
+        assert_eq!(scalar(&scene, 29), alpha_min);
+        assert_eq!(scalar(&scene, 30), LEGACY_TRANSMITTANCE_MIN.max(alpha_min));
+        assert_eq!(
+            word(&scene, 39),
+            SCENE_FLAG_TELEMETRY | SCENE_FLAG_INTERACTIVE | SCENE_FLAG_OPACITY_COMPENSATION
+        );
+    }
+
+    #[test]
+    fn one_frame_uniform_keeps_asset_flags_and_explicit_classic_policy() {
+        let mut manifest = manifest();
+        manifest.render.working_space = "linear-rgb".into();
+        manifest.render.output_transfer = Some("srgb".into());
+        manifest.policy.opacity_compensation = Some("none".into());
+        manifest.policy.alpha_cap = Some(0.999);
+        manifest.policy.pixel_alpha_min = Some(1.0 / 255.0);
+        manifest.policy.transmittance_epsilon = Some(1.0e-4);
+        let camera = fixed_camera(&manifest.camera.fixed, 1280, 720);
+        let scene = scene_uniform_values(
+            &manifest,
+            0,
+            &camera,
+            [1280, 720],
+            SceneRuntime {
+                time: 0.5,
+                temporal_cull: true,
+                alpha_min: manifest.policy.alpha_min,
+                telemetry_enabled: true,
+                interactive: false,
+            },
+        );
+
+        assert_eq!(scalar(&scene, 28), 0.999);
+        assert_eq!(scalar(&scene, 29), 1.0 / 255.0);
+        assert_eq!(scalar(&scene, 30), 1.0e-4);
+        assert_eq!(
+            word(&scene, 39),
+            SCENE_FLAG_TELEMETRY | SCENE_FLAG_LINEAR_TO_SRGB | SCENE_FLAG_EXPLICIT_RASTER_POLICY
+        );
     }
 }

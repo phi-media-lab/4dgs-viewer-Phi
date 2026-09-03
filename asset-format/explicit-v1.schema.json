@@ -31,6 +31,7 @@
       "required": ["domain", "max_duration", "units"],
       "properties": {
         "domain": { "const": [0, 1] },
+        "initial": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.5084746 },
         "max_duration": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1e30 },
         "units": { "const": "normalized" }
       }
@@ -56,7 +57,16 @@
       "properties": {
         "temporal_threshold": { "type": "number", "minimum": 0, "maximum": 1 },
         "alpha_min": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
-        "low_pass": { "type": "number", "minimum": 0, "exclusiveMaximum": 1e30 }
+        "low_pass": { "type": "number", "minimum": 0, "exclusiveMaximum": 1e30 },
+        "opacity_compensation": { "enum": ["none", "determinant-ratio"] },
+        "alpha_cap": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+        "pixel_alpha_min": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+        "transmittance_epsilon": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 }
+      },
+      "dependentRequired": {
+        "alpha_cap": ["pixel_alpha_min", "transmittance_epsilon"],
+        "pixel_alpha_min": ["alpha_cap", "transmittance_epsilon"],
+        "transmittance_epsilon": ["alpha_cap", "pixel_alpha_min"]
       }
     },
     "render": {
@@ -64,7 +74,8 @@
       "additionalProperties": false,
       "required": ["working_space", "background"],
       "properties": {
-        "working_space": { "const": "display-srgb" },
+        "working_space": { "enum": ["display-srgb", "linear-rgb"] },
+        "output_transfer": { "enum": ["identity", "srgb"] },
         "background": {
           "type": "array",
           "prefixItems": [
@@ -76,7 +87,22 @@
           "minItems": 4,
           "maxItems": 4
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "working_space": { "const": "linear-rgb" } },
+            "required": ["working_space"]
+          },
+          "then": {
+            "required": ["output_transfer"],
+            "properties": { "output_transfer": { "const": "srgb" } }
+          },
+          "else": {
+            "properties": { "output_transfer": { "const": "identity" } }
+          }
+        }
+      ]
     },
     "camera": {
       "type": "object",

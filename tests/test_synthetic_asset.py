@@ -174,6 +174,7 @@ class SyntheticAssetTest(unittest.TestCase):
             seed=20260903,
         )
         purpose = manifest["provenance"]["purpose"]
+        self.assertEqual(manifest["time"]["initial"], 0.5084746)
         self.assertEqual(purpose["id"], "4d-calibration-target")
         declared = {
             region["id"]: region["gaussian_count"] for region in purpose["regions"]
@@ -282,10 +283,40 @@ class SyntheticAssetTest(unittest.TestCase):
                 "temporal_threshold",
             ),
             (
+                lambda value: value["time"].__setitem__("initial", 1.0001),
+                "time initial",
+            ),
+            (
                 lambda value: value["render"].__setitem__(
                     "working_space", "linear-srgb"
                 ),
                 "working_space",
+            ),
+            (
+                lambda value: value["render"].__setitem__(
+                    "output_transfer", "srgb"
+                ),
+                "working_space/output_transfer",
+            ),
+            (
+                lambda value: value["policy"].__setitem__(
+                    "opacity_compensation", "approximate"
+                ),
+                "opacity_compensation",
+            ),
+            (
+                lambda value: value["policy"].__setitem__("alpha_cap", 0.999),
+                "must be declared together",
+            ),
+            (
+                lambda value: value["policy"].update(
+                    {
+                        "alpha_cap": 0.5,
+                        "pixel_alpha_min": 0.75,
+                        "transmittance_epsilon": 0.0001,
+                    }
+                ),
+                "no greater than alpha_cap",
             ),
             (
                 lambda value: value["render"].__setitem__("background", [0]),
@@ -316,6 +347,35 @@ class SyntheticAssetTest(unittest.TestCase):
             "appearance encoding",
             asset_name="synthetic-motion-sh3",
         )
+
+    def test_legacy_manifest_without_initial_time_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.generate_tree(root)
+            manifest_path = root / "minimal-sh0/manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            del manifest["time"]["initial"]
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            validated = validate_asset.validate(manifest_path)
+            self.assertEqual(validated["gaussian_count"], 3)
+
+    def test_explicit_classic_raster_policy_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.generate_tree(root)
+            manifest_path = root / "minimal-sh0/manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["policy"].update(
+                {
+                    "opacity_compensation": "none",
+                    "alpha_cap": 0.999,
+                    "pixel_alpha_min": 1.0 / 255.0,
+                    "transmittance_epsilon": 0.0001,
+                }
+            )
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            validated = validate_asset.validate(manifest_path)
+            self.assertEqual(validated["gaussian_count"], 3)
 
     def test_non_standard_and_duplicate_json_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

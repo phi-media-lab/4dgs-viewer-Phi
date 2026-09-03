@@ -22,6 +22,7 @@ SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 SHADER_SAFE_ABS = 1.0e30
 F32_MAX = 3.4028234663852886e38
 CAMERA_ORTHONORMAL_TOLERANCE = 1.0e-3
+LEGACY_INITIAL_TIME = 0.5084746
 
 
 def is_number(value: object) -> bool:
@@ -168,6 +169,7 @@ def validate_manifest_shape(manifest: object) -> dict:
     time = exact_object(
         manifest["time"],
         required={"domain", "max_duration", "units"},
+        optional={"initial"},
         label="time",
     )
     require(
@@ -178,6 +180,11 @@ def validate_manifest_shape(manifest: object) -> dict:
         "time domain must be [0, 1]",
     )
     require(time.get("units") == "normalized", "time units must be normalized")
+    initial_time = time.get("initial", LEGACY_INITIAL_TIME)
+    require(
+        is_number(initial_time) and 0 <= initial_time <= 1,
+        "time initial must be finite and in [0, 1]",
+    )
     require(
         is_shader_number(time["max_duration"]) and time["max_duration"] > 0,
         "max_duration must be positive and shader-safe finite",
@@ -201,6 +208,12 @@ def validate_manifest_shape(manifest: object) -> dict:
     policy = exact_object(
         manifest["policy"],
         required={"temporal_threshold", "alpha_min", "low_pass"},
+        optional={
+            "opacity_compensation",
+            "alpha_cap",
+            "pixel_alpha_min",
+            "transmittance_epsilon",
+        },
         label="policy",
     )
     require(
@@ -212,12 +225,51 @@ def validate_manifest_shape(manifest: object) -> dict:
         is_shader_number(policy["low_pass"]) and policy["low_pass"] >= 0,
         "low_pass must be shader-safe finite and non-negative",
     )
+    require(
+        policy.get("opacity_compensation", "determinant-ratio")
+        in {"none", "determinant-ratio"},
+        "unsupported opacity_compensation",
+    )
+    raster_fields = {
+        "alpha_cap",
+        "pixel_alpha_min",
+        "transmittance_epsilon",
+    }
+    present_raster_fields = raster_fields & policy.keys()
+    require(
+        not present_raster_fields or present_raster_fields == raster_fields,
+        "alpha_cap, pixel_alpha_min, and transmittance_epsilon must be declared together",
+    )
+    if present_raster_fields:
+        alpha_cap = policy["alpha_cap"]
+        pixel_alpha_min = policy["pixel_alpha_min"]
+        transmittance_epsilon = policy["transmittance_epsilon"]
+        require(
+            is_number(alpha_cap) and 0 < alpha_cap < 1,
+            "alpha_cap must be finite and in (0, 1)",
+        )
+        require(
+            is_number(pixel_alpha_min)
+            and 0 < pixel_alpha_min < 1
+            and pixel_alpha_min <= alpha_cap,
+            "pixel_alpha_min must be finite, in (0, 1), and no greater than alpha_cap",
+        )
+        require(
+            is_number(transmittance_epsilon)
+            and 0 < transmittance_epsilon < 1,
+            "transmittance_epsilon must be finite and in (0, 1)",
+        )
     render = exact_object(
         manifest["render"],
         required={"working_space", "background"},
+        optional={"output_transfer"},
         label="render",
     )
-    require(render["working_space"] == "display-srgb", "unsupported render working_space")
+    render_pair = (render["working_space"], render.get("output_transfer", "identity"))
+    require(
+        render_pair in {("display-srgb", "identity"), ("linear-rgb", "srgb")},
+        "unsupported render working_space/output_transfer",
+    )
     background = render["background"]
     require(
         isinstance(background, list)

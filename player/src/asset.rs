@@ -15,6 +15,11 @@ const SH3_CHANNELS: usize = 3;
 const SH3_RECORD_BYTES: usize = 92;
 const SHADER_SAFE_ABS: f32 = 1.0e30;
 const CAMERA_ORTHONORMAL_TOLERANCE: f64 = 1.0e-3;
+const LEGACY_INITIAL_TIME: f32 = 0.5084746;
+
+fn legacy_initial_time() -> f32 {
+    LEGACY_INITIAL_TIME
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -41,6 +46,8 @@ pub struct AppearanceDescription {
 #[serde(deny_unknown_fields)]
 pub struct TimeDescription {
     pub domain: [f32; 2],
+    #[serde(default = "legacy_initial_time")]
+    pub initial: f32,
     pub max_duration: f32,
     pub units: String,
 }
@@ -63,12 +70,22 @@ pub struct Policy {
     pub temporal_threshold: f32,
     pub alpha_min: f32,
     pub low_pass: f32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub opacity_compensation: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub alpha_cap: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pixel_alpha_min: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transmittance_epsilon: Option<f32>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct RenderDescription {
     pub working_space: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_transfer: Option<String>,
     pub background: [f32; 4],
 }
 
@@ -297,6 +314,10 @@ fn validate_manifest(manifest: &Manifest) -> Result<()> {
         "only normalized time [0, 1] is supported"
     );
     ensure!(
+        manifest.time.initial.is_finite() && (0.0..=1.0).contains(&manifest.time.initial),
+        "time initial must be finite and in the normalized [0, 1] domain"
+    );
+    ensure!(
         manifest.time.units == "normalized"
             && manifest.time.max_duration.is_finite()
             && manifest.time.max_duration > 0.0
@@ -322,9 +343,20 @@ fn validate_manifest(manifest: &Manifest) -> Result<()> {
         ),
         "only raw-sh0/raw-sh3 color is supported"
     );
+    let render_pair = (
+        manifest.render.working_space.as_str(),
+        manifest
+            .render
+            .output_transfer
+            .as_deref()
+            .unwrap_or("identity"),
+    );
     ensure!(
-        manifest.render.working_space == "display-srgb",
-        "only display-srgb is supported"
+        matches!(
+            render_pair,
+            ("display-srgb", "identity") | ("linear-rgb", "srgb")
+        ),
+        "unsupported render working_space/output_transfer"
     );
     ensure!(
         manifest.policy.temporal_threshold.is_finite()
@@ -343,6 +375,46 @@ fn validate_manifest(manifest: &Manifest) -> Result<()> {
             && manifest.policy.low_pass < SHADER_SAFE_ABS,
         "low_pass must be finite and non-negative"
     );
+    ensure!(
+        matches!(
+            manifest.policy.opacity_compensation.as_deref(),
+            None | Some("none") | Some("determinant-ratio")
+        ),
+        "unsupported opacity_compensation"
+    );
+    let explicit_raster_policy = (
+        manifest.policy.alpha_cap,
+        manifest.policy.pixel_alpha_min,
+        manifest.policy.transmittance_epsilon,
+    );
+    ensure!(
+        matches!(
+            explicit_raster_policy,
+            (None, None, None) | (Some(_), Some(_), Some(_))
+        ),
+        "alpha_cap, pixel_alpha_min, and transmittance_epsilon must be declared together"
+    );
+    if let (Some(alpha_cap), Some(pixel_alpha_min), Some(transmittance_epsilon)) =
+        explicit_raster_policy
+    {
+        ensure!(
+            alpha_cap.is_finite() && alpha_cap > 0.0 && alpha_cap < 1.0,
+            "alpha_cap must be finite and in (0, 1)"
+        );
+        ensure!(
+            pixel_alpha_min.is_finite()
+                && pixel_alpha_min > 0.0
+                && pixel_alpha_min < 1.0
+                && pixel_alpha_min <= alpha_cap,
+            "pixel_alpha_min must be finite, in (0, 1), and no greater than alpha_cap"
+        );
+        ensure!(
+            transmittance_epsilon.is_finite()
+                && transmittance_epsilon > 0.0
+                && transmittance_epsilon < 1.0,
+            "transmittance_epsilon must be finite and in (0, 1)"
+        );
+    }
     ensure!(
         manifest
             .render
@@ -509,9 +581,10 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     use super::{
-        AppearanceDescription, Asset, BinaryDescription, CameraDescription, FixedCamera, Manifest,
-        Policy, RECORD_BYTES, RenderDescription, Representation, SH3_RECORD_BYTES, TimeDescription,
-        validate_manifest, validate_records, validate_sh3_records,
+        AppearanceDescription, Asset, BinaryDescription, CameraDescription, FixedCamera,
+        LEGACY_INITIAL_TIME, Manifest, Policy, RECORD_BYTES, RenderDescription, Representation,
+        SH3_RECORD_BYTES, TimeDescription, validate_manifest, validate_records,
+        validate_sh3_records,
     };
 
     static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -586,6 +659,7 @@ mod tests {
             },
             time: TimeDescription {
                 domain: [0.0, 1.0],
+                initial: LEGACY_INITIAL_TIME,
                 max_duration: 1.0,
                 units: "normalized".into(),
             },
@@ -602,9 +676,14 @@ mod tests {
                 temporal_threshold: 0.002,
                 alpha_min: 1.0 / 255.0,
                 low_pass: 0.3,
+                opacity_compensation: None,
+                alpha_cap: None,
+                pixel_alpha_min: None,
+                transmittance_epsilon: None,
             },
             render: RenderDescription {
                 working_space: "display-srgb".into(),
+                output_transfer: None,
                 background: [0.0, 0.0, 0.0, 1.0],
             },
             camera: CameraDescription {
@@ -674,6 +753,32 @@ mod tests {
     }
 
     #[test]
+    fn legacy_manifest_without_initial_time_uses_the_previous_player_default() {
+        let binary = binary_with_unit_quaternion();
+        let mut value = serde_json::to_value(manifest(&binary, "raw-sh0", None)).unwrap();
+        value["time"].as_object_mut().unwrap().remove("initial");
+
+        let parsed: Manifest = serde_json::from_value(value).unwrap();
+        assert_eq!(parsed.time.initial, LEGACY_INITIAL_TIME);
+        validate_manifest(&parsed).unwrap();
+    }
+
+    #[test]
+    fn manifest_rejects_initial_time_outside_the_normalized_domain() {
+        let binary = binary_with_unit_quaternion();
+        for invalid in [-0.001, 1.001, f32::NAN] {
+            let mut value = manifest(&binary, "raw-sh0", None);
+            value.time.initial = invalid;
+            assert!(
+                validate_manifest(&value)
+                    .unwrap_err()
+                    .to_string()
+                    .contains("time initial")
+            );
+        }
+    }
+
+    #[test]
     fn manifest_rejects_out_of_range_background_and_non_rigid_camera() {
         let binary = binary_with_unit_quaternion();
         let mut invalid_background = manifest(&binary, "raw-sh0", None);
@@ -692,6 +797,62 @@ mod tests {
                 .unwrap_err()
                 .to_string()
                 .contains("rigid affine")
+        );
+    }
+
+    #[test]
+    fn manifest_accepts_only_coherent_color_and_filter_modes() {
+        let binary = binary_with_unit_quaternion();
+        let mut linear = manifest(&binary, "raw-sh0", None);
+        linear.render.working_space = "linear-rgb".into();
+        linear.render.output_transfer = Some("srgb".into());
+        linear.policy.opacity_compensation = Some("none".into());
+        validate_manifest(&linear).unwrap();
+
+        let mut mismatched_transfer = manifest(&binary, "raw-sh0", None);
+        mismatched_transfer.render.output_transfer = Some("srgb".into());
+        assert!(
+            validate_manifest(&mismatched_transfer)
+                .unwrap_err()
+                .to_string()
+                .contains("working_space/output_transfer")
+        );
+
+        let mut invalid_compensation = manifest(&binary, "raw-sh0", None);
+        invalid_compensation.policy.opacity_compensation = Some("approximate".into());
+        assert!(
+            validate_manifest(&invalid_compensation)
+                .unwrap_err()
+                .to_string()
+                .contains("opacity_compensation")
+        );
+    }
+
+    #[test]
+    fn manifest_accepts_explicit_classic_raster_policy_as_an_atomic_trio() {
+        let binary = binary_with_unit_quaternion();
+        let mut classic = manifest(&binary, "raw-sh0", None);
+        classic.policy.alpha_cap = Some(0.999);
+        classic.policy.pixel_alpha_min = Some(1.0 / 255.0);
+        classic.policy.transmittance_epsilon = Some(1.0e-4);
+        validate_manifest(&classic).unwrap();
+
+        let mut partial = classic.clone();
+        partial.policy.transmittance_epsilon = None;
+        assert!(
+            validate_manifest(&partial)
+                .unwrap_err()
+                .to_string()
+                .contains("must be declared together")
+        );
+
+        let mut inverted = classic;
+        inverted.policy.pixel_alpha_min = Some(0.9995);
+        assert!(
+            validate_manifest(&inverted)
+                .unwrap_err()
+                .to_string()
+                .contains("no greater than alpha_cap")
         );
     }
 

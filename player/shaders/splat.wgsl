@@ -37,7 +37,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let exponent = -0.5 * (input.conic.x * delta.x * delta.x +
         2.0 * input.conic.y * delta.x * delta.y + input.conic.z * delta.y * delta.y);
     if exponent > 0.0 { discard; }
-    let alpha = min(0.99, input.color_opacity.w * exp(exponent));
-    if alpha < scene.time_policy.z || !(alpha == alpha) { discard; }
+    let alpha = min(scene.raster_policy.x, input.color_opacity.w * exp(exponent));
+    if alpha < scene.raster_policy.y || !(alpha == alpha) { discard; }
     return vec4<f32>(input.color_opacity.xyz * alpha, alpha);
 }

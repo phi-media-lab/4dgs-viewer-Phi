@@ -10,8 +10,9 @@
 The Player renders explicit 4D Gaussian assets on a Linux GPU and sends encoded
 frames to a thin browser receiver. The course exposes its JavaScript host code,
 WGSL stages, GPU commands and numerical checks directly. VS Code is the code
-surface and the browser is the rendering surface. Training, model conversion
-and client-side Gaussian streaming are outside this repository.
+surface and the browser is the rendering surface. Training and client-side
+Gaussian streaming are outside this repository. A deterministic offline bridge
+imports a verified Pixel4DGS AssetBundle into the Player's explicit-v1 format.
 
 ## WebGPU course
 
@@ -97,6 +98,27 @@ The full contract is documented in
 regions and their expected visual invariants are described in
 [`examples/README.md`](examples/README.md).
 
+### Import a Pixel4DGS AssetBundle
+
+The bridge accepts an inference-only `p2g.asset_bundle.v1` directory and its
+hash-bound `p2g.camera_path.v1`; it does not accept a training checkpoint:
+
+```bash
+python3 tools/convert_p2g_asset.py \
+  /path/to/asset-bundle-v1 \
+  /path/to/camera_path.json \
+  /new/private/output-directory \
+  --name my-4dgs-asset
+```
+
+It verifies the source hash closure and tensor/camera semantics before writing,
+refuses to overwrite an existing output, maps the Pixel4DGS classic raster ABI
+explicitly, and stores the selected normalized timestamp as manifest
+`time.initial` (also repeated in the conversion receipt).
+Source redistribution restrictions remain attached to the output provenance;
+the repository contains no converted third-party model. See
+[`docs/P2G_ASSET_BRIDGE.md`](docs/P2G_ASSET_BRIDGE.md).
+
 ## Repository map
 
 ```text
@@ -104,7 +126,7 @@ player/        Remote renderer and thin WebRTC browser receiver
 lessons/       WebGPU course source and development environment
 asset-format/  Explicit 4DGS manifest and binary contract
 examples/      Deterministic synthetic conformance assets
-tools/         Asset and Schema validation
+tools/         Asset conversion, comparison and Schema validation
 evidence/      Native reference/comparison receipt Schema
 docs/          Architecture, platform support and validation model
 ```

@@ -56,6 +56,27 @@ cargo build --locked
 cargo test --locked
 ```
 
+## Import an inference AssetBundle
+
+From the repository root, convert a verified Pixel4DGS AssetBundle and its
+bound camera path into a new explicit-v1 directory:
+
+```bash
+python3 tools/convert_p2g_asset.py \
+  /path/to/asset-bundle-v1 \
+  /path/to/camera_path.json \
+  /new/private/explicit-v1 \
+  --camera-frame 0 \
+  --name example
+```
+
+The converter stores the selected camera timestamp as manifest `time.initial`
+and repeats it in the receipt as `initial_normalized_time`. The Player uses the
+manifest value unless `--time` explicitly overrides it. Conversion is offline
+and CPU-only; rendering still occurs here on the Linux GPU. See
+[`../docs/P2G_ASSET_BRIDGE.md`](../docs/P2G_ASSET_BRIDGE.md) for the accepted
+source profile and semantic mapping.
+
 ## Establish and validate a one-frame reference
 
 Creating a reference is an explicit, non-overwriting operation. Run it on the
@@ -158,6 +179,9 @@ Override the asset without changing the script:
 ```bash
 PHI_MANIFEST=/absolute/path/to/manifest.json ./scripts/run.sh
 ```
+
+Pass `--time NORMALIZED_TIME` only when intentionally overriding the
+manifest's initial time.
 
 For a remote host, forward the loopback listener:
 

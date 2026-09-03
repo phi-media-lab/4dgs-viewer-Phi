@@ -4,6 +4,7 @@ Each gate answers a different question. Passing one must not be reported as pass
 
 | Gate | What it proves | What it does not prove |
 | --- | --- | --- |
+| AssetBundle bridge tests | Source hash closure, tensor/camera validation and deterministic semantic mapping agree | GPU rendering correctness |
 | Asset semantic tests | Manifest, hashes, binary layout and negative cases agree | GPU rendering correctness |
 | JSON Schema check | Checked-in manifests satisfy the published structural contract | Binary payload semantics |
 | Evidence receipt Schema check | A reference or comparison receipt has the exact v1 field structure and JSON types | Cross-field equality, referenced frame bytes, or visual review |
@@ -11,6 +12,7 @@ Each gate answers a different question. Passing one must not be reported as pass
 | Lesson build/tests | All seven entries own their command chain, use relative URLs, recursively contain no model/media payload and bundle successfully | A WebGPU adapter executed the frame |
 | Lesson hardware Chrome smoke | Lessons 00–06 each publish `window.__LESSON_RESULT__.status === "PASS"` on a controlled real GPU adapter | Player correctness or production-scale performance |
 | AMD one-frame evidence | Vulkan render and VA-API color roundtrip agree with a reviewed reference | Interactive WebRTC behavior |
+| Cross-render one-frame comparison | Pixel4DGS and Phi agree numerically at the same model, camera, time and resolution | Temporal playback or network behavior |
 | Player Chrome session | End-to-end encode, WebRTC, presentation and input work | Multi-user or Internet deployment |
 
 ## Portable commands
@@ -84,6 +86,44 @@ cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
 cargo build --release --locked
 ```
+
+## Pixel4DGS bridge validation
+
+The bridge workflow is documented in
+[`P2G_ASSET_BRIDGE.md`](P2G_ASSET_BRIDGE.md). A source-render comparison must
+use the same AssetBundle, camera frame, normalized time, output dimensions,
+raster profile and photometric path. Keep the independently produced source
+frame distinct from a Phi `--write-golden` capture; relabeling one receipt as
+the other would turn a cross-implementation test into a self-reference.
+
+At minimum preserve these identities beside a private comparison:
+
+- source bundle and model SHA-256;
+- camera-path SHA-256, selected frame and timestamp;
+- source renderer implementation/runtime identity;
+- converted manifest, geometry and appearance SHA-256;
+- Phi source and shader bundle identity;
+- both raw RGBA8 hashes, dimensions and numerical metrics.
+
+Restricted real-world assets and their frames remain outside the repository.
+Only generic tools, Schemas and synthetic examples may be committed.
+
+For the initial 1280 x 720 Pixel4DGS/Phi closure, declare and run the image
+gate before reading its metrics:
+
+```bash
+python3 tools/compare_rgba8.py SOURCE.rgba8 PHI.rgba8 \
+  --width 1280 --height 720 \
+  --min-psnr-db 40 --max-mean-abs 1 --max-rmse 2.55 \
+  --output cross-render-comparison.json
+```
+
+The tool additionally requires opaque alpha and writes a non-overwriting,
+SHA-256-bound JSON receipt. Exit `0` is a pass, `1` is a declared metric failure
+and `2` is invalid input. At least one RGB threshold or `--require-rgb-exact`
+is mandatory, so alpha opacity alone cannot create a passing receipt. A
+threshold must not be relaxed after seeing a failed result and then reported as
+the original gate.
 
 A golden must be created as an explicit, non-overwriting action and visually
 reviewed before it becomes a comparison input.
