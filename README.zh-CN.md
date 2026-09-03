@@ -13,11 +13,11 @@ Player 在 Linux GPU 上渲染 explicit 4D Gaussian asset，并把编码后的�
 串流不在本仓库范围内；仓库提供一个确定性的离线 bridge，把经过验证的
 Pixel4DGS AssetBundle 导入 Player 的 explicit-v1 格式。
 
-![相机位姿与归一化时间同时变化的 Corgi 4DGS 预览](docs/assets/remote-frame-corgi-motion.webp)
+![相机闭环环绕、推拉并同时改变时间的 Corgi 4DGS 预览](docs/assets/remote-frame-corgi-motion.webp)
 
-*Corgi——499,980 个 SH3 Gaussian；相机位姿与归一化时间同时变化，并保留
-Player 的真实运行时 HUD。本仓库仅分发这段渲染预览，不分发源视频或
-Gaussian asset；权利边界见
+*Corgi——499,980 个 SH3 Gaussian；相机进行闭环环绕和推拉，同时改变
+归一化时间，并保留 Player 的真实运行时 HUD。本仓库仅分发这段渲染预览，
+不分发源视频或 Gaussian asset；权利边界见
 [`THIRD_PARTY.md`](THIRD_PARTY.md#selfcap-corgi-renderer-preview)。*
 
 ## WebGPU 课程
