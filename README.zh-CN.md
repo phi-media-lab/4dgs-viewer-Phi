@@ -4,14 +4,15 @@
 
 - `player/`：基于 Rust、wgpu、WGSL、Vulkan、DMA-BUF、VA-API 和 WebRTC
   的 Linux Remote Frame Mode Player；
-- `lessons/`：从第一性原理讲解 WebGPU + WGSL 的课程，目前包含 Lesson 00。
-  VS Code 负责代码，浏览器负责运行和显示。
+- `lessons/`：由七课组成的 WebGPU + WGSL 第一性原理课程，从 Device 创建
+  一直推进到完整的 synthetic 4DGS 渲染链路。
 
 Player 在 Linux GPU 上渲染 explicit 4D Gaussian asset，并把编码后的帧发送给
-轻量浏览器接收端。Lesson 00 以 RGB 三角形直接展示最小 WebGPU 宿主控制链和
-Shader 链。训练、模型转换和客户端 Gaussian 串流不在本仓库范围内。
+轻量浏览器接收端。课程直接呈现 JavaScript 宿主代码、WGSL 阶段、GPU 命令和
+数值验证；VS Code 负责代码，浏览器负责运行和显示。训练、模型转换和客户端
+Gaussian 串流不在本仓库范围内。
 
-## WebGPU Lesson 00
+## WebGPU 课程
 
 需要 Node.js `^20.19.0` 或 `>=22.12.0`，以及支持 WebGPU 的
 Chrome/Chromium。
@@ -20,15 +21,26 @@ Chrome/Chromium。
 code-insiders lessons/4dgs-viewer-phi.code-workspace
 cd lessons
 npm ci
-npm run dev
+npm run dev:open
 ```
 
-打开 `http://127.0.0.1:5173/00-environment/`。在 VS Code 中修改
-[`lessons/00-environment/main.js`](lessons/00-environment/main.js) 或
-[`lessons/00-environment/environment.wgsl`](lessons/00-environment/environment.wgsl)
-后，Vite 会自动更新浏览器里的渲染结果。验证命令见
-[`lessons/README.md`](lessons/README.md)，课程正文见
-[`lessons/00-environment/LESSON.md`](lessons/00-environment/LESSON.md)。
+课程目录位于 `http://127.0.0.1:5173/`，包含：
+
+```text
+00 Environment       WebGPU Device、Shader、Pipeline 与命令提交
+01 One Gaussian      解析 Gaussian footprint 与 CPU/WGSL 一致性
+02 Projection        3D 协方差、相机 Jacobian 与 2D conic
+03 Order and blend   正确透明顺序与刻意反转的错误结果
+04 Explicit time     静态/运动 primitive 与时间 opacity
+05 Active set        GPU active/visible 压缩与 indirect draw
+06 Complete pipeline 验证、投影、排序和渲染的完整组合
+```
+
+每一课直接持有自己的 WebGPU pipeline，并给出可证伪的
+`window.__LESSON_RESULT__`。课程输入是源码内常量或 JavaScript 程序化记录，
+运行时不需要模型、媒体文件或外部资产请求。修改源码后，Vite 会自动更新浏览器，
+无需手动刷新。课程说明与验证命令见
+[`lessons/README.md`](lessons/README.md)。
 
 ## Remote Frame Mode Player
 

@@ -4,16 +4,16 @@
 
 - `player/`: a Linux Remote Frame Mode Player built with Rust, wgpu, WGSL,
   Vulkan, DMA-BUF, VA-API and WebRTC;
-- `lessons/`: a first-principles WebGPU + WGSL course, currently containing
-  Lesson 00, in which VS Code is the code surface and the browser is the
-  rendering surface.
+- `lessons/`: seven first-principles WebGPU + WGSL lessons covering the path
+  from device creation to a complete synthetic 4DGS rendering pipeline.
 
 The Player renders explicit 4D Gaussian assets on a Linux GPU and sends encoded
-frames to a thin browser receiver. Lesson 00 exposes the minimal WebGPU host and
-shader chain directly as an RGB triangle. Training, model
-conversion and client-side Gaussian streaming are outside this repository.
+frames to a thin browser receiver. The course exposes its JavaScript host code,
+WGSL stages, GPU commands and numerical checks directly. VS Code is the code
+surface and the browser is the rendering surface. Training, model conversion
+and client-side Gaussian streaming are outside this repository.
 
-## WebGPU Lesson 00
+## WebGPU course
 
 Requirements: Node.js `^20.19.0` or `>=22.12.0` and a WebGPU-capable
 Chrome/Chromium build.
@@ -22,16 +22,28 @@ Chrome/Chromium build.
 code-insiders lessons/4dgs-viewer-phi.code-workspace
 cd lessons
 npm ci
-npm run dev
+npm run dev:open
 ```
 
-Open `http://127.0.0.1:5173/00-environment/`. Edit
-[`lessons/00-environment/main.js`](lessons/00-environment/main.js) and
-[`lessons/00-environment/environment.wgsl`](lessons/00-environment/environment.wgsl)
-in VS Code; Vite updates the rendered result in the browser.
-See [`lessons/README.md`](lessons/README.md) for the verification commands and
-[`lessons/00-environment/LESSON.md`](lessons/00-environment/LESSON.md) for the
-lesson.
+The catalog at `http://127.0.0.1:5173/` links to all seven lessons:
+
+```text
+00 Environment       WebGPU device, shader, pipeline and command submission
+01 One Gaussian      Analytic Gaussian footprint and CPU/WGSL agreement
+02 Projection        3D covariance, camera Jacobian and 2D conic
+03 Order and blend   Correct and deliberately reversed transparent order
+04 Explicit time     Static/moving primitives and temporal opacity
+05 Active set        GPU active/visible compaction and indirect draw
+06 Complete pipeline Validation, projection, sorting and rendering together
+```
+
+Every lesson owns its WebGPU pipeline and provides a falsifiable
+`window.__LESSON_RESULT__`. Course inputs are source constants or procedural
+JavaScript records; running the lessons requires no model, media file or
+external asset request. Vite updates the browser after source changes without a
+manual refresh. See
+[`lessons/README.md`](lessons/README.md) for the course and verification
+commands.
 
 ## Remote Frame Mode Player
 

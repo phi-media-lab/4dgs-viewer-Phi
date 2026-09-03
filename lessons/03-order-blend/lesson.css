@@ -1,0 +1,24 @@
+#controls {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12px;
+}
+
+#controls button {
+  padding: 6px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 0;
+  color: inherit;
+  background: rgba(9, 9, 9, 0.8);
+  font: inherit;
+  cursor: pointer;
+}
+
+#controls button:focus-visible { outline: 2px solid #fff; }
+#mode { color: #fff; }
+.hide-hud #controls { display: none; }

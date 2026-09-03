@@ -55,10 +55,27 @@ VS Code is the reading and editing surface. The browser is the execution,
 visualization and interaction surface. The lesson site contains no embedded
 editor, file tree or notebook UI.
 
-Lesson 00 covers the smallest WebGPU host/shader chain. Planned lessons will
-build toward Gaussian projection, covariance, compositing, sorting and time.
-Each lesson remains directly runnable and exposes a machine-readable
-`window.__LESSON_RESULT__`.
+The seven directly runnable lessons form this dependency chain:
+
+```text
+00 WebGPU environment
+   └─ 01 analytic Gaussian footprint
+       └─ 02 3D covariance → camera Jacobian → 2D conic
+           └─ 03 transparent order + transmittance blend
+               └─ 04 explicit motion + temporal opacity
+                   └─ 05 active/visible compaction + indirect draw
+                       └─ 06 validate → project → sort → render
+```
+
+Each lesson owns its JavaScript resource setup, WGSL stages and command
+submission. `infra/` supplies only the adapter/device boundary, canvas sizing,
+checked error scopes and the machine-readable `window.__LESSON_RESULT__`
+surface. Mathematical stages remain visible in lesson-owned `reference.js` and
+WGSL files.
+
+Course inputs are source constants or deterministic procedural records. The
+lesson tree contains no model or media payload. Lesson 06's external manifest
+slot is `null`, so its complete pipeline executes without an asset request.
 
 ## Shared boundary
 

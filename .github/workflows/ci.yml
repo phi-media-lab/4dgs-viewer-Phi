@@ -39,7 +39,7 @@ jobs:
           node-version-file: lessons/.node-version
           cache: npm
           cache-dependency-path: lessons/package-lock.json
-      - name: Test and build Lesson 00
+      - name: Test and build WebGPU course
         working-directory: lessons
         run: |
           npm ci

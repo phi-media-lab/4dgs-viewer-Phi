@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "dev:open": "vite --open /00-environment/",
+    "dev:open": "vite --open /",
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test tests/*.test.js"

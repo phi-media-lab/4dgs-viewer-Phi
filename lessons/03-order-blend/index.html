@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="../infra/style.css">
+  <link rel="stylesheet" href="./lesson.css">
+  <title>WebGPU · 03 Order and blend</title>
+</head>
+<body>
+  <canvas aria-label="Three overlapping Gaussian splats"></canvas>
+  <pre id="hud" aria-live="polite">LESSON 03 · BOOTING</pre>
+  <div id="controls" aria-label="Compositing order">
+    <button id="toggle" type="button">show wrong order</button>
+    <output id="mode">NEAR → FAR · CORRECT</output>
+    <span>SPACE · switch</span>
+  </div>
+  <pre id="error" role="alert"></pre>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

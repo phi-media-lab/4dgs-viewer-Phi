@@ -8,8 +8,8 @@ Each gate answers a different question. Passing one must not be reported as pass
 | JSON Schema check | Checked-in manifests satisfy the published structural contract | Binary payload semantics |
 | Evidence receipt Schema check | A reference or comparison receipt has the exact v1 field structure and JSON types | Cross-field equality, referenced frame bytes, or visual review |
 | Rust tests | Runtime loader, WGSL closure, control logic and HTTP bounds compile and pass | AMD interop or browser presentation |
-| Lesson build/tests | URLs, lesson contract and bundles are structurally valid | A WebGPU adapter executed the frame |
-| Lesson Chrome smoke | `window.__LESSON_RESULT__.status === "PASS"` on real WebGPU | Player correctness |
+| Lesson build/tests | All seven entries own their command chain, use relative URLs, recursively contain no model/media payload and bundle successfully | A WebGPU adapter executed the frame |
+| Lesson hardware Chrome smoke | Lessons 00–06 each publish `window.__LESSON_RESULT__.status === "PASS"` on a controlled real GPU adapter | Player correctness or production-scale performance |
 | AMD one-frame evidence | Vulkan render and VA-API color roundtrip agree with a reviewed reference | Interactive WebRTC behavior |
 | Player Chrome session | End-to-end encode, WebRTC, presentation and input work | Multi-user or Internet deployment |
 
@@ -36,7 +36,44 @@ cd lessons
 npm ci
 npm test
 npm run build
+npx vite build --base=/4dgs-viewer-Phi/ --outDir=dist-pages
 ```
+
+## WebGPU lesson checks
+
+Run `npm run dev:open` from `lessons/` to open the course catalog. Each page
+publishes its result at `window.__LESSON_RESULT__` after these checks complete:
+
+| Lesson | Runtime check |
+| --- | --- |
+| 00 | Adapter/device creation, WGSL compilation, pipeline creation and completed submission |
+| 01 | Analytic Gaussian alpha agrees between CPU reference and a WGSL compute readback |
+| 02 | Four projection cases and their conics agree between CPU and GPU |
+| 03 | Near-to-far order is monotonic and a rendered center pixel matches front-to-back CPU compositing |
+| 04 | The 32-byte time-uniform layout, static/moving invariants and explicit-time evaluations agree between CPU and WGSL |
+| 05 | GPU counters, compacted indices and indirect instance count match the CPU active-set reference |
+| 06 | Procedural input validation, projection, deterministic order and compositing agree across the complete pipeline |
+
+Lessons use constants or procedural records, so browser validation performs no
+external model or media request. `npm test` and the two production builds are
+portable structural checks; the browser result additionally requires a real
+WebGPU adapter.
+
+`surface.pass(details, assertions)` accepts only a non-empty assertion object
+whose values are all exactly `true`. Any other value publishes a structured
+`FAIL` result and throws; a truthy value cannot produce a false PASS. The same
+result is available in three forms:
+
+```text
+window.__LESSON_RESULT__
+html[data-lesson-status="PASS|FAIL"]
+script#lesson-result[type="application/json"]
+```
+
+The hosted GitHub Actions job performs source-contract tests and production
+builds, but does not claim WebGPU execution. Run the hardware Chrome smoke
+locally or on a controlled GPU browser runner and record the adapter alongside
+the seven structured results.
 
 Player source tests additionally require the Linux native packages listed in `player/README.md`:
 

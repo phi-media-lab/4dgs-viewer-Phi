@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="../infra/style.css">
+  <link rel="stylesheet" href="./lesson.css">
+  <title>WebGPU · 04 Explicit time</title>
+</head>
+<body>
+  <canvas aria-label="Static and time-varying Gaussian primitives"></canvas>
+  <pre id="hud" aria-live="polite">LESSON 04 · BOOTING</pre>
+  <div id="controls" aria-label="Timeline controls">
+    <button id="play" type="button">pause</button>
+    <label for="time">time</label>
+    <input id="time" type="range" min="0" max="1" step="0.001" value="0.5">
+    <output id="time-value" for="time">0.500</output>
+    <span>SPACE · play/pause</span>
+  </div>
+  <pre id="error" role="alert"></pre>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

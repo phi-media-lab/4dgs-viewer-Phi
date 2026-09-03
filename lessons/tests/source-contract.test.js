@@ -84,3 +84,28 @@ test('WGSL contains exactly the lesson 00 render entry points', async () => {
   assert.equal((shader.match(/@(vertex|fragment|compute)\b/g) ?? []).length, 2);
   assert.doesNotMatch(shader, /@compute\b/);
 });
+
+test('lesson 04 time uniform preserves its 32-byte CPU/WGSL contract', async () => {
+  const main = await read('04-explicit-time/main.js');
+  const shader = await read('04-explicit-time/explicit-time.wgsl');
+
+  const bufferDeclaration = main.match(
+    /const timeBuffer = device\.createBuffer\(\{([\s\S]*?)\n    \}\);/,
+  );
+  assert.ok(bufferDeclaration, 'Lesson 04 time buffer declaration is missing');
+  assert.match(bufferDeclaration[1], /label: 'lesson 04 current time'/);
+  assert.match(bufferDeclaration[1], /size: 32/);
+  assert.match(
+    bufferDeclaration[1],
+    /usage: GPUBufferUsage\.UNIFORM \| GPUBufferUsage\.COPY_DST/,
+  );
+  assert.match(
+    main,
+    /writeBuffer\(resources\.timeBuffer, 0, new Float32Array\(\[time, 0, 0, 0\]\)\)/,
+  );
+  assert.match(
+    shader,
+    /struct TimeState \{\s*time: f32,\s*_padding: vec3<f32>,\s*\};/s,
+  );
+  assert.match(shader, /@binding\(1\) var<uniform> time_state: TimeState;/);
+});
