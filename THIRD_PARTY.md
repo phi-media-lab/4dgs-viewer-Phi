@@ -18,10 +18,12 @@ does not contain a `NOTICE` file.
 ### SelfCap Corgi renderer preview
 
 [`docs/assets/remote-frame-corgi-motion.webp`](docs/assets/remote-frame-corgi-motion.webp)
-is a compressed documentation preview rendered by this repository's native
-Rust/wgpu/WGSL Player from a 499,980-Gaussian SH3 representation of the Corgi
-scene in the SelfCap Dataset. The source video, trained model, converted asset,
-raw rendered frames and private validation receipts are not distributed here.
+is a compressed browser capture of this repository's Remote Frame Mode Player,
+including its runtime HUD. The native Rust/wgpu/WGSL process rendered a
+499,980-Gaussian SH3 representation of the Corgi scene in the SelfCap Dataset
+while camera pose and normalized time changed together. The source video,
+trained model, converted asset, raw rendered frames and private validation
+receipts are not distributed here.
 
 The SelfCap Dataset is copyright 2024–2025 3D Vision Group at the State Key
 Lab of CAD&CG, Zhejiang University. Its terms permit use, modification and
