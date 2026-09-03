@@ -1,0 +1,14 @@
+.DS_Store
+**/__pycache__/
+.venv/
+*.py[cod]
+
+player/target/
+player/.runtime/
+player/validation/
+
+lessons/node_modules/
+lessons/dist/
+
+# Hardware and browser receipts are CI artifacts, not source inputs.
+artifacts/

@@ -1,0 +1,147 @@
+{
+  "schema": "phi.4dgs.explicit.v1",
+  "version": 1,
+  "name": "synthetic-motion-sh3",
+  "gaussian_count": 4096,
+  "record_stride": 80,
+  "binary": {
+    "uri": "gaussians.bin",
+    "bytes": 327744,
+    "sha256": "d9169dfce3f8e799a90b711233803d0a6c1bba990605d50f8e1024d1153cbdc3"
+  },
+  "time": {
+    "domain": [
+      0,
+      1
+    ],
+    "max_duration": 1.2,
+    "units": "normalized"
+  },
+  "representation": {
+    "velocity": "explicit-linear",
+    "rotation": "raw-xyzw",
+    "scale": "raw-log",
+    "opacity": "raw-logit",
+    "gate": "raw-logit-times-20",
+    "duration": "raw-logit-max-duration-over-6",
+    "color": "raw-sh3"
+  },
+  "policy": {
+    "temporal_threshold": 0.002,
+    "alpha_min": 0.00392156862745098,
+    "low_pass": 0.3
+  },
+  "render": {
+    "working_space": "display-srgb",
+    "background": [
+      0.018,
+      0.018,
+      0.018,
+      1.0
+    ]
+  },
+  "camera": {
+    "fixed": {
+      "world_to_camera_row_major": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "intrinsics": [
+        500.0,
+        500.0,
+        320.0,
+        180.0
+      ],
+      "source_size": [
+        640,
+        360
+      ],
+      "near": 0.05,
+      "far": 100.0
+    }
+  },
+  "provenance": {
+    "kind": "procedural-synthetic",
+    "generator": "tools/generate_synthetic_asset.py",
+    "generator_version": 3,
+    "seed": 20260903,
+    "gaussian_count": 4096,
+    "numeric_recipe": "python-f64-packed-f32-calibration-v2",
+    "purpose": {
+      "id": "4d-calibration-target",
+      "description": "analytic non-artistic target for projection, depth, time and SH checks",
+      "reference_time": 0.5084746,
+      "regions": [
+        {
+          "id": "asymmetric-frame",
+          "gaussian_count": 500,
+          "invariant": "image orientation, principal point and aspect-preserving camera fit"
+        },
+        {
+          "id": "title",
+          "gaussian_count": 350,
+          "invariant": "small-footprint covariance, alpha coverage and text legibility"
+        },
+        {
+          "id": "camera-axes",
+          "gaussian_count": 650,
+          "invariant": "RGB axis orientation and anisotropic covariance rotation"
+        },
+        {
+          "id": "rgb-swatches",
+          "gaussian_count": 400,
+          "invariant": "SH0 RGB channel order and display-space color handling"
+        },
+        {
+          "id": "depth-order",
+          "gaussian_count": 900,
+          "invariant": "front-to-back sorting and alpha compositing of overlapping layers"
+        },
+        {
+          "id": "timeline",
+          "gaussian_count": 800,
+          "invariant": "explicit linear velocity, temporal gate and normalized time playback"
+        },
+        {
+          "id": "sh-view",
+          "gaussian_count": 496,
+          "invariant": "SH coefficient order, basis signs and camera-dependent color"
+        }
+      ]
+    },
+    "external_models": [],
+    "external_datasets": []
+  },
+  "appearance": {
+    "uri": "sh3.f16",
+    "bytes": 376832,
+    "sha256": "0f200b4d0ff36aa266eae6316a1fce3c581fb0141ac32bff70242baf68eb0ea1",
+    "degree": 3,
+    "coefficients": 15,
+    "channels": 3,
+    "encoding": "float16-le-padded46",
+    "record_stride": 92
+  }
+}

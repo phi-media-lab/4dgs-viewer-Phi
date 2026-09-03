@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Phi explicit 4D Gaussian asset v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "name",
+    "gaussian_count",
+    "record_stride",
+    "binary",
+    "time",
+    "representation",
+    "policy",
+    "render",
+    "camera",
+    "provenance"
+  ],
+  "properties": {
+    "schema": { "const": "phi.4dgs.explicit.v1" },
+    "version": { "const": 1 },
+    "name": { "type": "string", "minLength": 1, "pattern": "\\S" },
+    "gaussian_count": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
+    "record_stride": { "const": 80 },
+    "binary": { "$ref": "#/$defs/binary" },
+    "appearance": { "$ref": "#/$defs/appearance" },
+    "time": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["domain", "max_duration", "units"],
+      "properties": {
+        "domain": { "const": [0, 1] },
+        "max_duration": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1e30 },
+        "units": { "const": "normalized" }
+      }
+    },
+    "representation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["velocity", "rotation", "scale", "opacity", "gate", "duration", "color"],
+      "properties": {
+        "velocity": { "const": "explicit-linear" },
+        "rotation": { "const": "raw-xyzw" },
+        "scale": { "const": "raw-log" },
+        "opacity": { "const": "raw-logit" },
+        "gate": { "const": "raw-logit-times-20" },
+        "duration": { "const": "raw-logit-max-duration-over-6" },
+        "color": { "enum": ["raw-sh0", "raw-sh3"] }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["temporal_threshold", "alpha_min", "low_pass"],
+      "properties": {
+        "temporal_threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "alpha_min": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+        "low_pass": { "type": "number", "minimum": 0, "exclusiveMaximum": 1e30 }
+      }
+    },
+    "render": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["working_space", "background"],
+      "properties": {
+        "working_space": { "const": "display-srgb" },
+        "background": {
+          "type": "array",
+          "prefixItems": [
+            { "type": "number", "minimum": 0, "maximum": 1 },
+            { "type": "number", "minimum": 0, "maximum": 1 },
+            { "type": "number", "minimum": 0, "maximum": 1 },
+            { "const": 1 }
+          ],
+          "minItems": 4,
+          "maxItems": 4
+        }
+      }
+    },
+    "camera": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fixed"],
+      "properties": {
+        "fixed": { "$ref": "#/$defs/fixedCamera" }
+      }
+    },
+    "provenance": {
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "representation": {
+            "properties": { "color": { "const": "raw-sh3" } },
+            "required": ["color"]
+          }
+        }
+      },
+      "then": { "required": ["appearance"] },
+      "else": { "not": { "required": ["appearance"] } }
+    }
+  ],
+  "$defs": {
+    "binary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uri", "bytes", "sha256"],
+      "properties": {
+        "uri": { "type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$" },
+        "bytes": { "type": "integer", "minimum": 144 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "appearance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uri", "bytes", "sha256", "degree", "coefficients", "channels", "encoding", "record_stride"],
+      "properties": {
+        "uri": { "type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$" },
+        "bytes": { "type": "integer", "minimum": 92 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "degree": { "const": 3 },
+        "coefficients": { "const": 15 },
+        "channels": { "const": 3 },
+        "encoding": { "const": "float16-le-padded46" },
+        "record_stride": { "const": 92 }
+      }
+    },
+    "fixedCamera": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["world_to_camera_row_major", "intrinsics", "source_size", "near", "far"],
+      "properties": {
+        "world_to_camera_row_major": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "array",
+            "minItems": 4,
+            "maxItems": 4,
+            "items": { "$ref": "#/$defs/shaderNumber" }
+          }
+        },
+        "intrinsics": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "prefixItems": [
+            { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1e30 },
+            { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1e30 },
+            { "$ref": "#/$defs/shaderNumber" },
+            { "$ref": "#/$defs/shaderNumber" }
+          ]
+        },
+        "source_size": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "integer", "minimum": 1, "maximum": 4294967295 }
+        },
+        "near": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1e30 },
+        "far": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1e30 }
+      }
+    },
+    "shaderNumber": {
+      "type": "number",
+      "exclusiveMinimum": -1e30,
+      "exclusiveMaximum": 1e30
+    }
+  }
+}

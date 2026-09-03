@@ -1,0 +1,30 @@
+[package]
+name = "phi-4dgs-player"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+description = "Linux Remote Frame Mode Player for explicit 4D Gaussian assets"
+repository = "https://github.com/phi-media-lab/4dgs-viewer-Phi"
+publish = false
+
+[dependencies]
+anyhow = "1.0"
+ash = "0.38"
+bytemuck = { version = "1.23", features = ["derive"] }
+clap = { version = "4.5", features = ["derive"] }
+gstreamer = { version = "0.24", features = ["v1_24"] }
+gstreamer-allocators = { version = "0.24", features = ["v1_24"] }
+gstreamer-app = { version = "0.24", features = ["v1_24"] }
+gstreamer-sdp = { version = "0.24", features = ["v1_24"] }
+gstreamer-video = { version = "0.24", features = ["v1_24"] }
+gstreamer-webrtc = { version = "0.24", features = ["v1_24"] }
+pollster = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+wgpu = { version = "30.0.1", default-features = false, features = ["std", "wgsl", "vulkan"] }
+
+[profile.release]
+debug = 0
+lto = "thin"
+strip = "debuginfo"

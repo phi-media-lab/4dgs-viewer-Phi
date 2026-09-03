@@ -1,0 +1,157 @@
+{
+  "schema": "phi.4dgs.remote-native.reference.v1",
+  "stage": "native-vulkan-dmabuf-vaapi",
+  "renderer": "Rust/wgpu/WGSL/Vulkan",
+  "source": {
+    "package_version": "0.1.0",
+    "rust_toolchain": "1.95.0",
+    "git_commit": null,
+    "native_source_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "shader_bundle_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+    "client_build": "333333333333"
+  },
+  "asset": {
+    "name": "synthetic-contract-fixture",
+    "manifest_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+    "geometry_sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+    "appearance_sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+  },
+  "frame": {
+    "adapter": "contract fixture (not hardware evidence)",
+    "backend": "Vulkan",
+    "driver": "fixture",
+    "driver_info": "not hardware evidence",
+    "shader_bundle_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+    "width": 2,
+    "height": 1,
+    "time": 0.5,
+    "submit_wait_ms": 0.0,
+    "counters": {
+      "active": 1,
+      "visible": 1,
+      "invalid": 0,
+      "culled_temporal": 0,
+      "culled_frustum": 0,
+      "culled_footprint": 0,
+      "equal_depth": 0,
+      "tile_overlaps": 1,
+      "tile_overflow": 0,
+      "max_tile_load": 1,
+      "early_terminated_pixels": 0,
+      "pixel_splat_tests": 1,
+      "budget_limited_pixels": 0,
+      "max_pixel_splat_tests": 1,
+      "max_budget_remaining_transmittance": 0.0,
+      "persistent_workload_flags": 0
+    },
+    "dmabuf": {
+      "drm_fourcc": 875713089,
+      "drm_fourcc_name": "AR24",
+      "modifier": 0,
+      "modifier_hex": "0x0000000000000000",
+      "candidate_modifiers": [
+        "0x0000000000000000"
+      ],
+      "modifier_selection_policy": "linear-only contract fixture",
+      "plane_count": 1,
+      "offset": 0,
+      "stride": 8,
+      "allocation_bytes": 8
+    },
+    "media": {
+      "input_memory": "DMA-BUF",
+      "input_format": "AR24",
+      "drm_memory_bytes_little_endian": "contract fixture",
+      "appsrc_colorimetry": "sRGB",
+      "nv12_colorimetry": "bt709",
+      "nv12_chroma_site": "jpeg",
+      "h264_caps": "contract fixture",
+      "color_conversion": "contract fixture",
+      "reference_importer": "contract fixture",
+      "reference_width": 2,
+      "reference_height": 1,
+      "reference_rgba_bytes": 8,
+      "reference_rgba_sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+      "decoded_rgba_bytes": 8,
+      "decoded_rgba_sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+      "encoder": "fixture",
+      "decoder": "fixture",
+      "codec": "H.264 fixture",
+      "h264_sps_vui_color_description": "not asserted",
+      "display_color_contract": "contract fixture",
+      "bitrate_kbps": 1,
+      "target_usage": 1,
+      "video_slices": 1,
+      "b_frames": 0,
+      "encoded_bytes": 1,
+      "encode_ms": 0.0,
+      "decode_ms": 0.0,
+      "decoded_rgb_mae": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reference_rgb_mean": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "decoded_rgb_mean": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "decoded_rgb_mean_delta": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "decoded_rgb_max_abs": [
+        0,
+        0,
+        0
+      ],
+      "permutation_scores": [
+        {
+          "reference_order": "RGB",
+          "sse": 0,
+          "psnr_db": 99.0
+        },
+        {
+          "reference_order": "RBG",
+          "sse": 1,
+          "psnr_db": 98.0
+        },
+        {
+          "reference_order": "GRB",
+          "sse": 2,
+          "psnr_db": 97.0
+        },
+        {
+          "reference_order": "GBR",
+          "sse": 3,
+          "psnr_db": 96.0
+        },
+        {
+          "reference_order": "BRG",
+          "sse": 4,
+          "psnr_db": 95.0
+        },
+        {
+          "reference_order": "BGR",
+          "sse": 5,
+          "psnr_db": 94.0
+        }
+      ],
+      "best_permutation": "RGB",
+      "pixel_gate_passed": true,
+      "cpu_pixel_copy": false,
+      "validation_cpu_readback": true
+    }
+  },
+  "reference": {
+    "rgba8_bytes": 8,
+    "rgba8_sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+    "review_status": "UNREVIEWED"
+  }
+}

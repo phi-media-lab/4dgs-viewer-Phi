@@ -1,0 +1,120 @@
+name: Source gates
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  assets-and-lessons:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Audit public tree
+        run: python3 tools/audit_public_tree.py
+      - name: Verify generated assets and binary semantics
+        run: |
+          python3 tools/generate_synthetic_asset.py --check
+          python3 -m unittest discover -s tests -v
+          python3 tools/validate_asset.py examples/minimal-sh0/manifest.json examples/synthetic-motion-sh3/manifest.json
+      - name: Install JSON Schema checker
+        run: python3 -m pip install --require-hashes --requirement tools/requirements-schema.lock
+      - name: Verify published JSON Schema
+        run: |
+          python3 tools/check_json_schema.py examples/minimal-sh0/manifest.json examples/synthetic-motion-sh3/manifest.json
+          python3 tools/check_json_schema.py \
+            --schema evidence/remote-native-evidence-v1.schema.json \
+            --schema-only
+          python3 tools/check_json_schema.py \
+            --schema evidence/remote-native-evidence-v1.schema.json \
+            evidence/fixtures/reference-v1.example.json \
+            evidence/fixtures/comparison-v1.example.json
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: lessons/.node-version
+          cache: npm
+          cache-dependency-path: lessons/package-lock.json
+      - name: Test and build Lesson 00
+        working-directory: lessons
+        run: |
+          npm ci
+          npm test
+          npm run build
+          npx --no-install vite build --base=/4dgs-viewer-Phi/ --outDir=dist-pages
+      - name: Generate dependency evidence
+        run: |
+          mkdir -p "$RUNNER_TEMP/dependency-evidence"
+          python3 tools/generate_dependency_inventory.py \
+            --output "$RUNNER_TEMP/dependency-evidence/lockfile-inventory.json"
+          cd lessons
+          npm sbom --sbom-format cyclonedx \
+            > "$RUNNER_TEMP/dependency-evidence/lessons.cdx.json"
+      - name: Upload dependency evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dependency-evidence-${{ github.sha }}
+          path: ${{ runner.temp }}/dependency-evidence
+          if-no-files-found: error
+          retention-days: 14
+
+  player-source:
+    runs-on: ubuntu-24.04
+    env:
+      CARGO_HOME: ${{ runner.temp }}/cargo-home
+      CARGO_INCREMENTAL: "0"
+      CARGO_TARGET_DIR: ${{ runner.temp }}/cargo-target
+      PHI_GIT_COMMIT: ${{ github.sha }}
+      RUSTFLAGS: >-
+        --remap-path-prefix=${{ github.workspace }}=/workspace
+        --remap-path-prefix=${{ runner.temp }}=/build
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install native development dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            pkg-config libvulkan-dev \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            libgstreamer-plugins-bad1.0-dev \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad gstreamer1.0-nice ffmpeg
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.95.0 --profile minimal --component rustfmt,clippy
+      - name: Prepare isolated Cargo directories
+        run: |
+          mkdir -p "$CARGO_HOME" "$CARGO_TARGET_DIR"
+          echo "SOURCE_DATE_EPOCH=$(git show -s --format=%ct "$GITHUB_SHA")" >> "$GITHUB_ENV"
+      - name: Format, lint, test, and build Player
+        working-directory: player
+        run: |
+          cargo +1.95.0 fmt --check
+          cargo +1.95.0 clippy --locked --all-targets -- -D warnings
+          cargo +1.95.0 test --locked
+          cargo +1.95.0 build --release --locked
+      - name: Inspect release binary for host paths
+        run: |
+          mkdir -p "$RUNNER_TEMP/player-release-evidence"
+          python3 tools/scan_binary_paths.py \
+            "$CARGO_TARGET_DIR/release/phi-4dgs-player" \
+            --forbid "$GITHUB_WORKSPACE" \
+            --forbid "$RUNNER_TEMP" \
+            --report "$RUNNER_TEMP/player-release-evidence/binary-path-scan.json"
+          (cd "$CARGO_TARGET_DIR/release" && sha256sum phi-4dgs-player) \
+            > "$RUNNER_TEMP/player-release-evidence/binary.sha256"
+          rustc +1.95.0 -Vv \
+            > "$RUNNER_TEMP/player-release-evidence/rustc-version.txt"
+          cargo +1.95.0 -Vv \
+            > "$RUNNER_TEMP/player-release-evidence/cargo-version.txt"
+      - name: Upload release build evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: player-release-evidence-${{ github.sha }}
+          path: ${{ runner.temp }}/player-release-evidence
+          if-no-files-found: warn
+          retention-days: 14

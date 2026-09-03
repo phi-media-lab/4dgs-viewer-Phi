@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en" translate="no" data-build="__CLIENT_BUILD__">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="google" content="notranslate">
+  <title>4DGS · Remote Frame Mode Player</title>
+  <style>
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #000; color: #eee; }
+    body { font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    video { width: 100%; height: 100%; display: block; object-fit: contain; cursor: grab;
+      touch-action: none; user-select: none; }
+    video.dragging { cursor: grabbing; }
+    #status { position: fixed; left: 14px; top: 12px; white-space: pre; pointer-events: none;
+      padding: 5px 7px; background: rgba(0,0,0,.58); color: #d8d8d8; }
+    #error { position: fixed; inset: auto 14px 14px 14px; white-space: pre-wrap; color: #ff8c8c; }
+  </style>
+</head>
+<body>
+  <video id="video" autoplay playsinline muted></video>
+  <div id="status">CONNECTING</div>
+  <div id="error"></div>
+  <script type="module" src="/client.js"></script>
+</body>
+</html>
