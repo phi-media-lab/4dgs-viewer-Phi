@@ -3,7 +3,8 @@
 [English](README.md)
 
 4DGS Viewer Phi 是一个架构优先、可验证、面向远端交互式 4D Gaussian 场景
-的参考实现，由 Phi Media Lab 与 AMD 合作推进。
+的参考实现，由 Phi Media Lab 基于 AMD 软硬件生态开发，覆盖上游 ROCm 计算
+与下游 Radeon/Linux 图形和媒体链路。
 
 参考工作流把两类 AMD 硬件职责解耦：上游姊妹项目
 [Pixel4DGS reconstruction](https://github.com/phi-media-lab/4dgs-reconstruction-Phi)
@@ -88,10 +89,10 @@ Gaussian payload 不经过网络。
 代价是 AMD 节点需要为每个会话承担渲染和编码成本，并受到网络时延约束；v0.1
 有意限定为单用户。
 
-## AMD 软硬件参考设计
+## AMD 软硬件生态
 
-这项合作把 AMD 的计算、图形与媒体能力划分为不同系统职责，而不是把训练和
-交互式交付强行耦合到一个运行时中。
+本参考设计把 AMD 软硬件生态中的计算、图形与媒体能力划分为不同系统职责，
+而不是把训练和交互式交付强行耦合到一个运行时中。
 
 | 阶段 | 参考软硬件 | 在本项目中的职责 |
 | --- | --- | --- |

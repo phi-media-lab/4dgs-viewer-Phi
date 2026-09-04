@@ -3,8 +3,9 @@
 [简体中文](README.zh-CN.md)
 
 4DGS Viewer Phi is an architecture-first, verifiable reference for remotely
-rendered, interactive 4D Gaussian scenes. It is developed by Phi Media Lab in
-collaboration with AMD.
+rendered, interactive 4D Gaussian scenes. Phi Media Lab develops it for an
+AMD-based pipeline spanning upstream ROCm compute and downstream Radeon/Linux
+graphics and media.
 
 The reference workflow separates two AMD hardware roles: AMD Instinct MI300X
 with ROCm can produce inference assets upstream through the sister
@@ -94,11 +95,11 @@ not to the number of Gaussians. The tradeoff is per-session render/encode cost
 on the AMD node and dependence on network latency; v0.1 is deliberately
 single-peer.
 
-## AMD hardware and software design
+## AMD hardware and software ecosystem
 
-The collaboration uses AMD's compute, graphics and media capabilities as
-separate system roles rather than forcing training and interactive delivery
-into one runtime.
+The reference design uses compute, graphics and media capabilities from the
+AMD hardware and software ecosystem as separate system roles rather than
+forcing training and interactive delivery into one runtime.
 
 | Stage | Reference hardware/software | Responsibility |
 | --- | --- | --- |
