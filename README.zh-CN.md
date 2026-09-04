@@ -6,11 +6,11 @@
 的参考实现，由 Phi Media Lab 与 AMD 合作推进。
 
 参考工作流把两类 AMD 硬件职责解耦：上游姊妹项目
-[Pixel4DGS reconstruction](https://github.com/phi-media-lab/4dgs-reconstruction-phi)
+[Pixel4DGS reconstruction](https://github.com/phi-media-lab/4dgs-reconstruction-Phi)
 可以使用 AMD Instinct MI300X 和 ROCm 生产推理资产，AMD Radeon Linux 节点
 负责交互式渲染与媒体编码，笔记本浏览器保持为薄客户端。本仓库公开推理/服务
 部分以及连接两者的严格资产边界，不公开训练系统。生产端配置与交接命令见
-[Pixel4DGS Viewer 互操作指南](https://github.com/phi-media-lab/4dgs-reconstruction-phi/blob/main/docs/VIEWER_INTEROP.md)。
+[Pixel4DGS Viewer 互操作指南](https://github.com/phi-media-lab/4dgs-reconstruction-Phi/blob/main/docs/VIEWER_INTEROP.md)。
 
 ![相机闭环环绕、推拉并同时改变时间的 Corgi 4DGS 预览](docs/assets/remote-frame-corgi-motion.webp)
 
@@ -95,7 +95,7 @@ Gaussian payload 不经过网络。
 
 | 阶段 | 参考软硬件 | 在本项目中的职责 |
 | --- | --- | --- |
-| 上游资产生产 | AMD Instinct MI300X + ROCm | 训练或准备兼容 [Pixel4DGS](https://github.com/phi-media-lab/4dgs-reconstruction-phi) 的推理 bundle；不在本仓库内 |
+| 上游资产生产 | AMD Instinct MI300X + ROCm | 训练或准备兼容 [Pixel4DGS](https://github.com/phi-media-lab/4dgs-reconstruction-Phi) 的推理 bundle；不在本仓库内 |
 | 交互式光栅化 | AMD Radeon GPU + Linux `amdgpu`/DRM + Mesa RADV | 执行 Vulkan 4DGS workload |
 | 可移植 GPU 层 | Rust + wgpu + WGSL/Naga | 描述资源、Shader、pass 与命令提交 |
 | Vulkan escape hatch | `ash` + `wgpu-hal` | 创建可导出的 Vulkan image，并把同一 image 包装为 wgpu texture |

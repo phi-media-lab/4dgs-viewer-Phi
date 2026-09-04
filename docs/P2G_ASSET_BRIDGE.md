@@ -1,12 +1,12 @@
 # Pixel4DGS AssetBundle bridge
 
 `tools/convert_p2g_asset.py` is an offline contract boundary between a verified
-[Pixel4DGS](https://github.com/phi-media-lab/4dgs-reconstruction-phi)
+[Pixel4DGS](https://github.com/phi-media-lab/4dgs-reconstruction-Phi)
 inference asset and the Phi Remote Frame Mode Player. It is not a checkpoint
 importer and does not require PyTorch, Safetensors, a GPU, or the Pixel4DGS
 source tree. The producer-side profile, export, and camera-path commands are in
 the
-[Pixel4DGS Viewer interoperability guide](https://github.com/phi-media-lab/4dgs-reconstruction-phi/blob/main/docs/VIEWER_INTEROP.md).
+[Pixel4DGS Viewer interoperability guide](https://github.com/phi-media-lab/4dgs-reconstruction-Phi/blob/main/docs/VIEWER_INTEROP.md).
 
 ```text
 p2g.asset_bundle.v1 + p2g.camera_path.v1
