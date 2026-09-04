@@ -55,24 +55,24 @@ allocation，同时暴露为 wgpu texture 和 DMA-BUF descriptor，并不是渲�
 
 ```mermaid
 sequenceDiagram
-    participant C as 笔记本 · Chrome
-    participant P as Rust Player · AMD Linux
-    participant G as Radeon GPU · RADV/Vulkan
-    participant M as GStreamer · radeonsi VA-API/WebRTC
+    participant C as 笔记本 · Chrome 客户端
+    box AMD Linux 渲染节点
+        participant P as Rust Player
+        participant A as 图形/媒体栈 · RADV/Vulkan + VA-API
+    end
 
     C->>P: HTTP GET / 与 /client.js · POST /offer
     P-->>C: 接收页 · SDP answer
-    Note over C,M: SSH 只转发 HTTP · WebRTC 媒体与 DataChannel 需要 UDP 直达
+    Note over C,A: SSH 只转发 HTTP · WebRTC 媒体与 DataChannel 需要 UDP 直达
 
     loop 活动会话 · 单用户
         C->>P: 相机/时间/播放状态 · control + config DataChannel
-        P->>G: 把下一帧 4DGS 渲染到可导出 slot
-        G-->>P: GPU 完成
-        P->>M: 同一个 slot · linear AR24 DMA-BUF
-        M-->>C: H.264/RTP 媒体 · WebRTC
-        C-->>M: RTCP 恢复反馈
+        P->>A: 把 4DGS 渲染到可导出的 BGRA slot
+        A->>A: GStreamer 导入同一 DMA-BUF → H.264
+        A-->>C: H.264/RTP 媒体 · WebRTC
+        C-->>A: RTCP NACK/PLI/FIR
         C-->>P: receiver progress/stats · DataChannel
-        M-->>P: 释放 slot / 施加 backpressure
+        A-->>P: 释放 slot / 施加 backpressure
         C->>P: HTTP GET /status
         P-->>C: HUD 所需的 renderer snapshot
     end

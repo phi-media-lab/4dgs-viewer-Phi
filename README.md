@@ -58,24 +58,24 @@ DMA-BUF descriptor, not a post-render copy through `ash`.
 
 ```mermaid
 sequenceDiagram
-    participant C as Laptop · Chrome
-    participant P as Rust Player · AMD Linux
-    participant G as Radeon GPU · RADV/Vulkan
-    participant M as GStreamer · radeonsi VA-API/WebRTC
+    participant C as Laptop · Chrome client
+    box AMD Linux render node
+        participant P as Rust Player
+        participant A as Graphics/media · RADV/Vulkan + VA-API
+    end
 
     C->>P: HTTP GET / + /client.js · POST /offer
     P-->>C: receiver page · SDP answer
-    Note over C,M: SSH may forward HTTP only · WebRTC media and DataChannels require direct UDP
+    Note over C,A: SSH may forward HTTP only · WebRTC media and DataChannels require direct UDP
 
     loop Active session · one peer
         C->>P: camera/time/playback · control + config DataChannels
-        P->>G: render next 4DGS frame into an exportable slot
-        G-->>P: GPU completion
-        P->>M: same slot · linear AR24 DMA-BUF
-        M-->>C: H.264/RTP media · WebRTC
-        C-->>M: RTCP recovery feedback
+        P->>A: render 4DGS into an exportable BGRA slot
+        A->>A: GStreamer imports the same DMA-BUF → H.264
+        A-->>C: H.264/RTP media · WebRTC
+        C-->>A: RTCP NACK/PLI/FIR
         C-->>P: receiver progress/stats · DataChannel
-        M-->>P: release slot / apply backpressure
+        A-->>P: release slot / apply backpressure
         C->>P: HTTP GET /status
         P-->>C: renderer snapshot for HUD
     end
