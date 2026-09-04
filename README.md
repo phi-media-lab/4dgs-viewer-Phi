@@ -7,10 +7,14 @@ rendered, interactive 4D Gaussian scenes. It is developed by Phi Media Lab in
 collaboration with AMD.
 
 The reference workflow separates two AMD hardware roles: AMD Instinct MI300X
-with ROCm can produce inference assets upstream, while an AMD Radeon Linux node
-owns interactive rendering and media encoding. A laptop browser remains a thin
-receiver. This repository publishes the inference/serving side and the strict
-asset boundary between the two; it does not publish a training system.
+with ROCm can produce inference assets upstream through the sister
+[Pixel4DGS reconstruction project](https://github.com/phi-media-lab/4dgs-reconstruction-phi),
+while an AMD Radeon Linux node owns interactive rendering and media encoding.
+A laptop browser remains a thin receiver. This repository publishes the
+inference/serving side and the strict asset boundary between the two; it does
+not publish a training system. Producer-side settings and hand-off commands are
+documented in the
+[Pixel4DGS Viewer interoperability guide](https://github.com/phi-media-lab/4dgs-reconstruction-phi/blob/main/docs/VIEWER_INTEROP.md).
 
 ![Corgi 4DGS preview with a looping camera orbit, dolly and time change](docs/assets/remote-frame-corgi-motion.webp)
 
@@ -98,7 +102,7 @@ into one runtime.
 
 | Stage | Reference hardware/software | Responsibility |
 | --- | --- | --- |
-| Upstream asset production | AMD Instinct MI300X + ROCm | Train or prepare a Pixel4DGS-compatible inference bundle; outside this repository |
+| Upstream asset production | AMD Instinct MI300X + ROCm | Train or prepare a [Pixel4DGS](https://github.com/phi-media-lab/4dgs-reconstruction-phi)-compatible inference bundle; outside this repository |
 | Interactive rasterization | AMD Radeon GPU + Linux `amdgpu`/DRM + Mesa RADV | Execute the Vulkan 4DGS workload |
 | Portable GPU layer | Rust + wgpu + WGSL/Naga | Describe resources, shaders, passes and submission |
 | Vulkan escape hatch | `ash` + `wgpu-hal` | Create an exportable Vulkan image and wrap the same image as a wgpu texture |
