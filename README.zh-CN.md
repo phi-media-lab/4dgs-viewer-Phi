@@ -17,49 +17,65 @@ ROCm 生产推理资产，AMD Radeon Linux 节点负责交互式渲染与媒体�
 不分发源视频或 Gaussian asset；权利边界见
 [`THIRD_PARTY.md`](THIRD_PARTY.md#selfcap-corgi-renderer-preview)。*
 
-## 系统架构
+## 架构总览
 
-```text
-参考资产生产——不在本仓库内
+### 软件组件
 
-AMD Instinct MI300X + ROCm
-兼容 Pixel4DGS 的训练 / 推理导出
-                         │
-                         │ p2g.asset_bundle.v1 + camera path
-                         ▼
-               CPU-only、哈希闭合的 bridge
-                         │ phi.4dgs.explicit.v1
-                         ▼
-──────────────────── AMD LINUX 渲染端 ────────────────────
+```mermaid
+flowchart LR
+    subgraph ASSETS["推理资产交接边界"]
+        direction TB
+        UPSTREAM["可选生产端 · 仓库外<br/>AMD Instinct MI300X + ROCm<br/>兼容 Pixel4DGS 的 bundle + camera path"]
+        BRIDGE["离线边界 · 仅 CPU<br/>tools/ + asset-format/<br/>哈希闭合的 explicit-v1 asset"]
+        UPSTREAM -->|p2g.asset_bundle.v1 + camera path| BRIDGE
+    end
 
-             Rust 帧调度与资源所有权
-                         │
-                  wgpu 宿主命令 + WGSL
-                    Naga Shader 转换
-                         │
-               AMD GPU 上的 Mesa RADV / Vulkan
-                         │
-       时间求值 / 投影 / active set 压缩
-         深度 radix sort / tile bin / tile 合成
-                         │
-               BGRA 渲染目标、linear DRM layout
-                         │ ash + wgpu-hal external memory
-                         ▼
-                   linear AR24 DMA-BUF
-                         │
-       GStreamer vaapipostproc + vaapih264enc
-                 Mesa radeonsi VA-API
-                         │
-                     H.264 / WebRTC
-                         │ 媒体帧
-─────────────────────────┼──────────────────────────────────
-                         ▼
-                   Chrome 薄客户端
-                    解码 / 显示 / HUD
-                         │
-                         └── orbit / zoom / time ──►
-                              WebRTC DataChannel
-                              返回渲染端
+    subgraph PLAYER["player/ · 单个 AMD Linux 进程"]
+        direction TB
+        CORE["宿主控制 + 4DGS 渲染器<br/>Rust 帧调度 · wgpu · WGSL/Naga<br/>Mesa RADV · Vulkan"]
+        FRAMES["可导出的 BGRA frame slot<br/>由 ash 在 wgpu-hal Vulkan Device 上创建<br/>wgpu texture view + linear AR24 DMA-BUF"]
+        MEDIA["媒体与会话<br/>GStreamer · radeonsi VA-API<br/>H.264 · WebRTC"]
+        CORE -->|写入 texture view| FRAMES
+        FRAMES -->|同一 allocation · DMA-BUF fd| MEDIA
+    end
+
+    RECEIVER["Chrome 薄客户端 · player/web/<br/>H.264 解码/显示 · 输入 · HUD<br/>WebGPU：无"]
+    LESSONS["lessons/<br/>独立的 Browser WebGPU runtime"]
+
+    ASSETS -->|phi.4dgs.explicit.v1| PLAYER
+    PLAYER == "H.264 / WebRTC" ==> RECEIVER
+    LESSONS -. "只共享原理 · 无运行时依赖" .-> PLAYER
+```
+
+实线是服务主链，虚线只表示概念复用。每个 BGRA slot 都是同一块 Vulkan
+allocation，同时暴露为 wgpu texture 和 DMA-BUF descriptor，并不是渲染完成后
+再通过 `ash` 复制一次。
+
+### Server–Client 服务模式
+
+```mermaid
+sequenceDiagram
+    participant C as 笔记本 · Chrome
+    participant P as Rust Player · AMD Linux
+    participant G as Radeon GPU · RADV/Vulkan
+    participant M as GStreamer · radeonsi VA-API/WebRTC
+
+    C->>P: HTTP GET / 与 /client.js · POST /offer
+    P-->>C: 接收页 · SDP answer
+    Note over C,M: SSH 只转发 HTTP · WebRTC 媒体与 DataChannel 需要 UDP 直达
+
+    loop 活动会话 · 单用户
+        C->>P: 相机/时间/播放状态 · control + config DataChannel
+        P->>G: 把下一帧 4DGS 渲染到可导出 slot
+        G-->>P: GPU 完成
+        P->>M: 同一个 slot · linear AR24 DMA-BUF
+        M-->>C: H.264/RTP 媒体 · WebRTC
+        C-->>M: RTCP 恢复反馈
+        C-->>P: receiver progress/stats · DataChannel
+        M-->>P: 释放 slot / 施加 backpressure
+        C->>P: HTTP GET /status
+        P-->>C: HUD 所需的 renderer snapshot
+    end
 ```
 
 Linux 进程拥有 GPU Device、Gaussian 资源、命令顺序、frame slot、帧节奏和

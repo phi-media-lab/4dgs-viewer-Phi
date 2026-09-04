@@ -20,49 +20,65 @@ preserved. Only this rendered preview is distributed; the source video and
 Gaussian asset are not. See
 [`THIRD_PARTY.md`](THIRD_PARTY.md#selfcap-corgi-renderer-preview).*
 
-## System architecture
+## Architecture at a glance
 
-```text
-REFERENCE ASSET PRODUCTION — outside this repository
+### Software components
 
-AMD Instinct MI300X + ROCm
-Pixel4DGS-compatible training / inference export
-                         │
-                         │ p2g.asset_bundle.v1 + camera path
-                         ▼
-              CPU-only, hash-verified bridge
-                         │ phi.4dgs.explicit.v1
-                         ▼
-──────────────────── AMD LINUX RENDERER ────────────────────
+```mermaid
+flowchart LR
+    subgraph ASSETS["Inference asset hand-off"]
+        direction TB
+        UPSTREAM["Optional producer · outside repository<br/>AMD Instinct MI300X + ROCm<br/>Pixel4DGS-compatible bundle + camera path"]
+        BRIDGE["Offline boundary · CPU only<br/>tools/ + asset-format/<br/>hash-verified explicit-v1 asset"]
+        UPSTREAM -->|p2g.asset_bundle.v1 + camera path| BRIDGE
+    end
 
-          Rust frame scheduler and resource ownership
-                         │
-                wgpu host commands + WGSL
-                  Naga shader translation
-                         │
-               Mesa RADV / Vulkan on AMD GPU
-                         │
-       time evaluation / projection / active compaction
-         depth radix sort / tile bin / tile composite
-                         │
-             BGRA render target, linear DRM layout
-                         │ ash + wgpu-hal external memory
-                         ▼
-                 linear AR24 DMA-BUF
-                         │
-       GStreamer vaapipostproc + vaapih264enc
-                 Mesa radeonsi VA-API
-                         │
-                    H.264 / WebRTC
-                         │ media frames
-─────────────────────────┼──────────────────────────────────
-                         ▼
-                  Chrome thin receiver
-                 decode / present / HUD
-                         │
-                         └── orbit / zoom / time ──►
-                              WebRTC DataChannel
-                              back to the renderer
+    subgraph PLAYER["player/ · one AMD Linux process"]
+        direction TB
+        CORE["Host control + 4DGS renderer<br/>Rust scheduler · wgpu · WGSL/Naga<br/>Mesa RADV · Vulkan"]
+        FRAMES["Exportable BGRA frame slots<br/>ash on the wgpu-hal Vulkan device<br/>wgpu texture view + linear AR24 DMA-BUF"]
+        MEDIA["Media + session<br/>GStreamer · radeonsi VA-API<br/>H.264 · WebRTC"]
+        CORE -->|writes texture view| FRAMES
+        FRAMES -->|same allocation · DMA-BUF fd| MEDIA
+    end
+
+    RECEIVER["Thin Chrome receiver · player/web/<br/>H.264 decode/present · input · HUD<br/>WebGPU: none"]
+    LESSONS["lessons/<br/>independent browser WebGPU runtime"]
+
+    ASSETS -->|phi.4dgs.explicit.v1| PLAYER
+    PLAYER == "H.264 / WebRTC" ==> RECEIVER
+    LESSONS -. "same principles · no runtime dependency" .-> PLAYER
+```
+
+The solid path is the serving path; the dotted link is conceptual reuse only.
+Each BGRA slot is one Vulkan allocation exposed as both a wgpu texture and a
+DMA-BUF descriptor, not a post-render copy through `ash`.
+
+### Server–client service model
+
+```mermaid
+sequenceDiagram
+    participant C as Laptop · Chrome
+    participant P as Rust Player · AMD Linux
+    participant G as Radeon GPU · RADV/Vulkan
+    participant M as GStreamer · radeonsi VA-API/WebRTC
+
+    C->>P: HTTP GET / + /client.js · POST /offer
+    P-->>C: receiver page · SDP answer
+    Note over C,M: SSH may forward HTTP only · WebRTC media and DataChannels require direct UDP
+
+    loop Active session · one peer
+        C->>P: camera/time/playback · control + config DataChannels
+        P->>G: render next 4DGS frame into an exportable slot
+        G-->>P: GPU completion
+        P->>M: same slot · linear AR24 DMA-BUF
+        M-->>C: H.264/RTP media · WebRTC
+        C-->>M: RTCP recovery feedback
+        C-->>P: receiver progress/stats · DataChannel
+        M-->>P: release slot / apply backpressure
+        C->>P: HTTP GET /status
+        P-->>C: renderer snapshot for HUD
+    end
 ```
 
 The Linux process owns the GPU device, Gaussian resources, command order, frame
